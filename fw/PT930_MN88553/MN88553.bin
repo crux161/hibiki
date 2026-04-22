@@ -1,0 +1,27 @@
+// -----------------------------------------------
+//	MN88553 Control Program Initial File
+// -----------------------------------------------
+// --- I2C Communication ---
+I2C_Port,USB
+printer_port,&H378
+
+// --- Register slave address ---
+I2C_sadr_rf,&H60
+I2C_sadr_ofdm,&H61
+I2C_sadr_soc,&H62
+
+// --- register file ---
+//regfile_rf,fw_060/TMM3_RF_MT_DIFF_150619.rgs
+regfile_rf,fw_060/TMM3_RF_MT_DIFF_160318X26.rgs
+regfile_ofdm,fw_060/MN88553_OFDM_DIFF_ISDB-T_6M_160304.rgs
+//regfile_soc,fw_060/MN88553_SOC_DIFF_160304.rgs
+regfile_soc,fw_060/MN88553_SOC_DIFF_160304_add.rgs
+
+// --- ch setting
+//chfile,fw_060/MN88553_chfile_20160204_3.csv
+chfile,fw_060/MN88553_chfile_20160317X26_3.csv
+
+// --- PSEQ TUNER hex ---
+pseq_hex,fw_060/PSEQ1_MN88553_160304_bprty.hex
+//tnctl_hex,fw_060/TMM3_TNCTL_DIFF_160307.hex
+tnctl_hex,fw_060/TMM3_TNCTL_DIFF_160318X26.hex

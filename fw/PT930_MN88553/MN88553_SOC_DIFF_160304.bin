@@ -1,0 +1,7 @@
+// File : MN88553_SOC_DIFF_160304.rgs
+// Date : 2016/03/04
+// Time : 14:49:38
+// Comment : 
+//
+TSSPICTL4     , 2           ,&H19         ,&H4          ,
+PSEQOP55      , 2           ,&HE7         ,&H3          ,
