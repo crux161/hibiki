@@ -1,12 +1,13 @@
-#!/usr/bin/env python3.10
+#!/usr/bin/env python3
 
 import usb.core
 import usb.util
 import sys
 
 # Default Cypress EZ-USB FX2LP unprogrammed VID/PID
-VID = 0x04B4
-PID = 0x8613
+# 1f4d:e691 
+VID = 0x1F4D
+PID = 0xE691
 
 # Cypress Vendor Request for RAM download
 REQ_RAM_DOWNLOAD = 0xA0
