@@ -8,6 +8,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(Threads REQUIRED)
+include(CTest)
 
 # ---- libusb-1.0: prefer pkg-config, fall back to Homebrew paths ----
 find_package(PkgConfig QUIET)
@@ -44,6 +45,15 @@ target_link_directories(hibiki_core PUBLIC ${HIBIKI_USB_LIBRARY_DIRS})
 target_link_libraries(hibiki_core PUBLIC ${HIBIKI_USB_LIBRARIES} Threads::Threads)
 target_compile_options(hibiki_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
+# ---- ATSC PSIP decoder (channel names and program listings) ----
+add_library(hibiki_psip STATIC src/psip.cpp)
+target_compile_options(hibiki_psip PRIVATE -Wall -Wextra -Wno-unused-parameter)
+if(BUILD_TESTING)
+  add_executable(psip_test tests/psip_test.cpp)
+  target_link_libraries(psip_test PRIVATE hibiki_psip)
+  add_test(NAME psip COMMAND psip_test)
+endif()
+
 # ---- CLI ----
 add_executable(hibiki src/main.cpp)
 target_link_libraries(hibiki PRIVATE hibiki_core)
@@ -77,7 +87,14 @@ pkg_check_modules(FFMPEG QUIET libavformat libavcodec libavutil libswscale libsw
 
 if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
   # macOS .app bundle (Hibiki.app) with the mangosteen icon.
-  add_executable(hibiki_sdl MACOSX_BUNDLE src/sdl_frontend.cpp)
+  add_executable(hibiki_sdl MACOSX_BUNDLE src/sdl_frontend.cpp src/osd.cpp src/player.cpp src/firmware.cpp)
+  target_compile_definitions(hibiki_sdl PRIVATE HIBIKI_VERSION="${PROJECT_VERSION}")
+  if(APPLE)
+    enable_language(OBJCXX)
+    target_sources(hibiki_sdl PRIVATE src/macos_menu.mm)
+    set_source_files_properties(src/macos_menu.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    target_link_libraries(hibiki_sdl PRIVATE "-framework Cocoa")
+  endif()
   set_target_properties(hibiki_sdl PROPERTIES
     OUTPUT_NAME "Hibiki"
     MACOSX_BUNDLE_BUNDLE_NAME "Hibiki"
@@ -106,8 +123,41 @@ if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
   target_link_directories(hibiki_sdl PRIVATE
     ${SDL3_LIBRARY_DIRS} ${SDL3_TTF_LIBRARY_DIRS} ${FFMPEG_LIBRARY_DIRS})
   target_link_libraries(hibiki_sdl PRIVATE
-    hibiki_core ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
+    hibiki_core hibiki_psip ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
+  target_compile_definitions(hibiki_sdl PRIVATE HIBIKI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_custom_command(TARGET hibiki_sdl POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+      "$<TARGET_FILE:hibiki_sdl>" "${CMAKE_CURRENT_BINARY_DIR}/hibiki-tv" VERBATIM)
   target_compile_options(hibiki_sdl PRIVATE -Wall -Wextra -Wno-unused-parameter)
+  if(BUILD_TESTING)
+    add_executable(hibiki_firmware_tests tests/firmware_tests.cpp src/firmware.cpp)
+    target_include_directories(hibiki_firmware_tests PRIVATE include ${FFMPEG_INCLUDE_DIRS})
+    target_link_directories(hibiki_firmware_tests PRIVATE ${FFMPEG_LIBRARY_DIRS})
+    target_link_libraries(hibiki_firmware_tests PRIVATE ${FFMPEG_LIBRARIES})
+    add_test(NAME firmware_validation COMMAND hibiki_firmware_tests)
+
+    add_executable(hibiki_frontend_tests tests/frontend_tests.cpp src/osd.cpp src/player.cpp)
+    target_compile_definitions(hibiki_frontend_tests PRIVATE HIBIKI_VERSION="${PROJECT_VERSION}")
+    target_include_directories(hibiki_frontend_tests PRIVATE
+      ${SDL3_INCLUDE_DIRS} ${SDL3_TTF_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIRS})
+    target_link_directories(hibiki_frontend_tests PRIVATE
+      ${SDL3_LIBRARY_DIRS} ${SDL3_TTF_LIBRARY_DIRS} ${FFMPEG_LIBRARY_DIRS})
+    target_link_libraries(hibiki_frontend_tests PRIVATE
+      hibiki_core hibiki_psip ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
+    if(APPLE)
+      target_sources(hibiki_frontend_tests PRIVATE src/macos_menu.mm)
+      target_link_libraries(hibiki_frontend_tests PRIVATE "-framework Cocoa")
+    endif()
+    target_sources(hibiki_frontend_tests PRIVATE src/firmware.cpp)
+    add_test(NAME frontend_controls_and_guide COMMAND hibiki_frontend_tests)
+    set_tests_properties(frontend_controls_and_guide PROPERTIES TIMEOUT 10
+      ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    find_package(Python3 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+      add_test(NAME fx2_firmware_validation
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/wake_tuner_tests.py)
+    endif()
+  endif()
 else()
   message(STATUS "hibiki_sdl skipped (need SDL3 + SDL3_ttf + FFmpeg)")
 endif()

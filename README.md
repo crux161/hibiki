@@ -9,27 +9,139 @@ Requires `libusb`, and for the TV front-end `sdl3`, `sdl3_ttf` and `ffmpeg`
 (Homebrew). The FX2 bridge firmware must already be loaded (`scripts/wake_tuner.py`).
 
 ```sh
-./scripts/build.sh          # CMake -> ./hibiki (CLI) and ./Hibiki.app (TV front-end)
+./scripts/build.sh          # CMake -> ./hibiki (CLI), ./Hibiki.app and ./hibiki-tv
 ./scripts/sign.sh           # ad-hoc codesign Hibiki.app (debug entitlements)
 ./hibiki --scan             # CLI: sweep ATSC channels
 ./hibiki --freq 201028615   # CLI: tune + serve MPEG-TS over HTTP (VLC)
 open ./Hibiki.app           # TV front-end (video + audio + HUD)
+./hibiki-tv --demo          # TV front-end from a shell, with flags (no tuner needed)
 ```
 
-On first run (or `--rescan` / `S`) the app scans the US ATSC channel plan,
-remembers the channels that lock (per-user `channels.txt`), and thereafter
-tunes / navigates only those. The on-screen display uses the bundled VCR OSD
-font (`res/font/`), styled like the Android app.
+`hibiki` is the headless CLI. The TV front-end is the binary inside the app
+bundle; `hibiki-tv` (also created in the CMake build dir, `build/hibiki-tv`)
+is a symlink to it so front-end flags can be passed directly. From Finder or
+`open`, pass flags with `open Hibiki.app --args --demo`.
 
-Front-end controls: `Esc` quit / close menu, `Enter` channel menu,
-`←`/`→` or `PageUp`/`PageDown` channel, `↑`/`↓` volume (menu: navigate),
-`H` HUD, `F` fullscreen, `M` mute, `S` rescan.
+On first run (or `--rescan` / `S`) the app scans the US ATSC channel plan,
+remembers the channels that lock (per-user `channels.txt`) and reads each
+one's PSIP channel table, so the channel list, channel up/down and the HUD all
+use the broadcast's virtual channels (`13-1 KEET-HD`, `13-2 PBSKids`, ...).
+Sub-channels on the RF channel already tuned switch instantly. It reopens on
+the last channel and sub-channel watched.
+
+### Playback pipeline
+
+`src/player.{h,cpp}`: a demux thread reads the TS (tuner ring or file) through
+libavformat into video and audio packet queues; the UI thread decodes, keeps
+~0.25 s of audio queued in SDL, and shows each video frame when its PTS comes
+due on the audio clock (wall clock when there is no audio), dropping late
+frames and resynchronising on timestamp jumps. The UI never blocks on the
+signal, so a dropout freezes the picture with `NO SIGNAL` instead of hanging
+the menus. The signal information panel (`I`) shows the measured A/V offset, audio buffer
+and dropped frames; `--stats` prints them every 2 s.
+
+The on-screen display (`src/osd.{h,cpp}`) uses the bundled VCR OSD font
+(`res/font/`): a VHS-style playback HUD (channel, clock, volume, signal) and a
+blue VCR set-up menu. With no picture the screen falls back to VCR "blue back"
+with `NO SIGNAL` instead of exiting.
+
+Front-end controls (remote-style; `?` / `F1` opens the shortcut guide):
+
+| Key | Action |
+| --- | --- |
+| `Enter` / `Tab` | open MENU (in menus: set) |
+| `Esc` / `Backspace` | back / close menu (no menu: quit) |
+| `↑` `↓` | volume while watching (in menus: select) |
+| `+` / `-` (or `=`) | volume in any screen, including the guide; `-` separates virtual-channel digits during direct entry |
+| `←` `→`, `PageUp` `PageDown` | virtual channel down / up (in menus: adjust value) |
+| `0`–`9`, `-` / `.` | direct entry: `13` = first 13-x, `13-2` = that sub-channel, else RF 13 (commits on `Enter` or 1.5 s) |
+| `C` / `L` | channel list (`Space` toggles favourite) |
+| `G` | program guide (in a channel's listing `←` `→` switch sub-channel, `Enter` = info) |
+| `?` / `F1` | keyboard shortcut guide (Escape returns to the previous menu) |
+| `A` | next audio track |
+| `Z` | screen scale: FIT / FULL / STRETCH |
+| `I` | toggle bottom-right signal information (signal meter, lock flags, A/V sync) |
+| `B` | firmware setup |
+| `F2` | About Hibiki |
+| `H` | toggle the basic HUD: channel/current show at top left and date/clock at top right |
+| `F` / `M` / `S` / `Q` | fullscreen / mute / auto channel scan / quit |
+
+On macOS, **Hibiki → About Hibiki**, **Hibiki → Firmware Setup…** (`⌘,`), and
+**Help → Keyboard Shortcuts** open the same on-screen pages. Native `⌘H` and
+`⌘Q` retain their normal behavior. Toggle keys ignore key repeat; volume and
+menu selection can be held down. H and I toggle independently; press the same
+key again to hide its panel immediately.
+
+MENU: channel list, program guide, sub channel (the RF channel's MPEG
+programs), audio track, screen scale, set up feature (HUD, signal info, scanlines, 12/24 h
+clock, volume, favourites-only surfing), set up channel (scan range 2-36 or
+2-51, auto scan, clear favourites), firmware setup, keyboard shortcuts, and About. Items marked `SOON` (closed
+captions, record/timer, parental lock) are placeholders for PadTV parity work.
+Preferences persist in `settings.txt` next to `channels.txt`.
+
+### Program guide (ATSC PSIP)
+
+libavformat ignores ATSC PSIP, so `src/psip.{h,cpp}` decodes it from the raw
+TS as the demuxer reads it: MGT, terrestrial/cable VCT (virtual channel
+`major-minor` numbers and names, mapped to MPEG programs), STT (broadcast
+time), EIT-k (events, content-advisory rating) and ETT (descriptions). The HUD
+shows `CH 3-1`, the station name and what is on now; the guide lists each
+sub-channel's now-playing title, its schedule and per-event info. Guide data is
+cached per RF channel in `psip/<rf>.txt` (next to `channels.txt`), so names and
+listings appear as soon as a channel is tuned and the channel list shows
+station names. Huffman-compressed strings (A/65 Annex C) are not decoded yet
+and show as `[COMPRESSED]`. `ctest` (or `build/psip_test`) runs the decoder
+against a synthetic PSIP stream; `--demo` feeds the same stream to the UI.
+
+### Testing without an antenna
+
+- `./hibiki-tv --demo` runs the UI with colour bars, fake channel memory and a
+  synthetic PSIP stream. With `--screenshot out.bmp` it saves a frame and exits.
+- `./hibiki-tv --dump-ts cap.ts` records what the tuner delivers; later
+  `./hibiki-tv --ts-file cap.ts --channel 11` replays it in real time (looping)
+  through the same player, PSIP decoder and HUD, without touching the tuner or
+  your saved settings.
+- `--keys G,+1000,Return` scripts key presses (SDL key names; `+ms` waits),
+  e.g. to screenshot the guide once PSIP has arrived.
 
 **Firmware is not redistributable and is NOT in this repo.** Obtain the blobs
 separately (verify against the SHA-256 table below) and place them in `fw/`, or
 point the app at them with `--fw <path>` / `$HIBIKI_FW` /
 `~/Library/Application Support/hibiki/fw/`. The Eagle blob
 (`mbin_mxl_eagle_fw.bin`) is what the tuner loads at runtime.
+A local build also looks in the source tree's `fw/` and, when built from a git
+worktree, in the main checkout's `fw/`. If the firmware or the stick is
+missing, the app stays open on a `TUNER ERROR` page (with `RETRY`, or `R`)
+rather than quitting, since a Finder launch has no terminal to show errors.
+
+### Firmware setup in the HUD
+
+Press **`B`** or launch with `--setup` to manage firmware without connecting to
+the tuner. The TUNER ERROR page links to setup when Eagle firmware is missing/invalid or
+the tuner cannot connect; the app stays open so you can correct the problem.
+
+- **Import files** (select with Up/Down, then Enter): choose a `hibiki-fw-b64.json` bundle, one or both raw
+  `.bin` files, or `.b64` snippets. Multiple files can be selected together.
+- **Import folder** (`O`): choose a raw firmware tree, bundle folder, or snippet folder.
+- **V / Verify**: recheck the active files against the pinned byte sizes and SHA-256
+  hashes below. Imported firmware is verified before any selected file is installed.
+- **R / Connect**: retry the tuner after fixing its files or USB connection.
+- You can also drop firmware files or a folder onto the window.
+
+Verified imports are installed under `~/Library/Application Support/hibiki/fw/`
+and take precedence over development-tree copies. Explicit `--fw` and `$HIBIKI_FW`
+overrides retain priority. A single verified blob can be imported independently;
+bundles must contain both required blobs. Corrupt inputs are rejected without
+replacing installed firmware.
+
+Eagle firmware is required for playback. The FX2 bootstrap is also checked and
+stored, but bridge wake-up still uses `scripts/wake_tuner.py` (requires Python
+`pyusb`). That script checks the pinned hash and prefers the imported
+bootstrap; `--fw <path>` selects a different bootstrap file. After waking the
+bridge, press **R / Connect** in setup.
+
+`--shortcuts` and `--about` open their panels at launch; combine with `--setup`
+to inspect them without connecting hardware.
 
 ### Carrying the firmware as base64
 
@@ -49,6 +161,13 @@ a raw `fw/` tree, or a bare base64 snippet of one blob:
 `verify`/`install` also accept a lone `.b64` snippet or a directory of them.
 The bundle is only base64-encoded, so `fw_package/` is gitignored exactly like
 `fw/`: do not commit or redistribute it.
+
+## Checks
+
+Regression checks after building: `ctest --test-dir build --output-on-failure`.
+With local firmware available, `build/hibiki_firmware_tests fw fw_package/hibiki-fw-b64.json`
+also exercises raw-file, snippet, and bundle installation round trips. The tests
+do not send firmware to USB hardware.
 
 ## Extracted Firmware Candidates
 

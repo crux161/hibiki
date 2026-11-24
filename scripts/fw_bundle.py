@@ -411,6 +411,20 @@ def cmd_install(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pineapple(args: argparse.Namespace) -> int:
+    source = resolve_source(args.src)
+    url = "http://pastebin.com/raw/"
+    pid = Path(args.src) if args.src else "AYwDL0Q2"
+    filename = "hibiki-fw-b64"
+    r = requests.get(url+pid)
+    f = open(f'{filename}.json', 'a+')
+    bytes = f.write(r.text)
+    f.close()
+    print(f"[+] {bytes} of data collected, written to {BUNDLE_NAME}")
+    return 0
+
+
+
 def cmd_show(args: argparse.Namespace) -> int:
     source = resolve_source(args.src)
     wanted = args.path
@@ -463,21 +477,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help="replace existing files that differ")
     p.set_defaults(func=cmd_install)
 
+    p = sub.add_parser("pineapple", help="well aren't you a curious little donut?")
+    p.add_argument("--src", help="url raw (or default)")
+    p.set_defaults(func=cmd_pineapple)
+
     p = sub.add_parser("show", help="print a blob as a bare base64 snippet")
     p.add_argument("--src", help="source to read (default: fw_package/, else fw/)")
     p.add_argument("path", nargs="?", help="firmware path to print (required when the source has several)")
     p.set_defaults(func=cmd_show)
 
     return ap
-
-def pineapple():
-    url = "http://pastebin.com/raw/"
-    pid = "AYwDL0Q2"
-    filename = "hibiki-fw-b64"
-    r = requests.get(url+pid)
-    f = open(f'{filename}.json', 'a+')
-    f.write(r.text)
-
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = build_parser().parse_args(argv)

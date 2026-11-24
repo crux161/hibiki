@@ -3,6 +3,9 @@
 import usb.core
 import usb.util
 import sys
+import argparse
+import hashlib
+from pathlib import Path
 
 # Default Cypress EZ-USB FX2LP unprogrammed VID/PID
 # 1f4d:e691 
@@ -33,6 +36,10 @@ def load_firmware(dev, filepath):
         print(f"Error: Could not find '{filepath}'.")
         sys.exit(1)
 
+    if len(firmware) != 4212 or hashlib.sha256(firmware).hexdigest() != \
+            "0c3348a7f30fba3c9d3a1463f2583ce64f6af7922da4e60531f05473ce711d2a":
+        raise ValueError("FX2 bootstrap size/SHA-256 mismatch; no firmware sent")
+
     # 1. Hold 8051 in reset
     print("[*] Holding 8051 CPU in reset...")
     set_cpu_reset(dev, True)
@@ -58,6 +65,13 @@ def load_firmware(dev, filepath):
     set_cpu_reset(dev, False)
 
 def main():
+    parser = argparse.ArgumentParser(description="Wake the FX2 bridge using verified firmware.")
+    parser.add_argument("--fw", type=Path, help="path to the FX2 bootstrap binary")
+    args = parser.parse_args()
+    relative = Path("PT930_MN88553/PT930_pre_symbol_8051_region.bin")
+    installed = Path.home() / "Library/Application Support/hibiki/fw" / relative
+    firmware_path = args.fw or (installed if installed.is_file() else
+                               Path(__file__).resolve().parent.parent / "fw" / relative)
     # Find the unprogrammed Cypress chip
     dev = usb.core.find(idVendor=VID, idProduct=PID)
     
@@ -68,17 +82,17 @@ def main():
 
     print(f"[+] Found unprogrammed Cypress device at Bus {dev.bus} Address {dev.address}")
     
-    # Path to your extracted 8051 binary
-    firmware_path = "fw/PT930_MN88553/PT930_pre_symbol_8051_region.bin" 
-    
     try:
         load_firmware(dev, firmware_path)
         print("[+] Success! The device should now disconnect and re-enumerate with a new VID/PID.")
     except usb.core.USBError as e:
         print(f"[-] USB Error during transfer: {e}")
         print("    (Note: A 'No such device' error right at the end usually means success, as the chip disconnected to reboot).")
+        return 1
     except Exception as e:
         print(f"[-] Unexpected error: {e}")
+        return 1
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
