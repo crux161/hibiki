@@ -85,7 +85,7 @@ pkg_check_modules(FFMPEG QUIET libavformat libavcodec libavutil libswscale libsw
 
 if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
   # macOS .app bundle (Hibiki.app) with the mangosteen icon.
-  add_executable(hibiki_sdl MACOSX_BUNDLE src/sdl_frontend.cpp src/osd.cpp)
+  add_executable(hibiki_sdl MACOSX_BUNDLE src/sdl_frontend.cpp src/osd.cpp src/player.cpp)
   set_target_properties(hibiki_sdl PROPERTIES
     OUTPUT_NAME "Hibiki"
     MACOSX_BUNDLE_BUNDLE_NAME "Hibiki"
@@ -132,6 +132,12 @@ if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
   target_link_libraries(hibiki_sdl PRIVATE
     hibiki_core hibiki_psip ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
   target_compile_options(hibiki_sdl PRIVATE -Wall -Wextra -Wno-unused-parameter)
+  # `hibiki-tv` next to the CLI: runs the app binary inside the bundle, so
+  # front-end flags can be passed directly (./build/hibiki-tv --demo).
+  add_custom_command(TARGET hibiki_sdl POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+            "$<TARGET_FILE:hibiki_sdl>" "${CMAKE_CURRENT_BINARY_DIR}/hibiki-tv"
+    VERBATIM)
 else()
   message(STATUS "hibiki_sdl skipped (need SDL3 + SDL3_ttf + FFmpeg)")
 endif()

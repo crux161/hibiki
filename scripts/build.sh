@@ -19,7 +19,8 @@ cp "${BUILD_DIR}/hibiki" ./hibiki
 if [ -d "${BUILD_DIR}/Hibiki.app" ]; then
   rm -rf ./Hibiki.app
   cp -R "${BUILD_DIR}/Hibiki.app" ./Hibiki.app
-  echo "built ./hibiki ./Hibiki.app"
+  ln -sf Hibiki.app/Contents/MacOS/Hibiki ./hibiki-tv
+  echo "built ./hibiki ./Hibiki.app ./hibiki-tv"
 else
   echo "built ./hibiki (SDL front-end skipped)"
 fi

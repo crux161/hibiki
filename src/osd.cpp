@@ -14,6 +14,24 @@ namespace {
 constexpr float kFontFrac[3] = {1.0f / 24.0f, 1.0f / 21.0f, 1.0f / 9.0f};
 constexpr float kLinePitch = 1.18f;
 constexpr uint64_t kEvictFrames = 240;
+
+size_t utf8_len(const std::string& s) {
+    size_t n = 0;
+    for (unsigned char c : s) n += (c & 0xC0) != 0x80;
+    return n;
+}
+
+// Keep the first `chars` code points (the OSD font is monospace).
+std::string utf8_cut(const std::string& s, size_t chars) {
+    size_t n = 0, i = 0;
+    for (; i < s.size(); ++i) {
+        if (((unsigned char)s[i] & 0xC0) != 0x80) {
+            if (n == chars) break;
+            ++n;
+        }
+    }
+    return s.substr(0, i);
+}
 } // namespace
 
 void Renderer::release() {
@@ -123,10 +141,14 @@ float Renderer::text(Font f, const std::string& s, float x, float y, SDL_Color c
         SDL_RenderTexture(ren_, e->tex, nullptr, &d);
     };
     if (st == Style::Vhs) {
-        float o = std::max(1.0f, std::round(px_[(int)f] / 16.0f));
-        blit(o, o, kBlack, (uint8_t)(alpha * 0.75f));
-        blit(-o, 0, SDL_Color{255, 40, 60, 255}, (uint8_t)(alpha * 0.55f));
-        blit(o, 0, SDL_Color{40, 90, 255, 255}, (uint8_t)(alpha * 0.55f));
+        // Black edge all round (like a VCR character generator) so the text
+        // reads on bright pictures, then a slight red/blue chroma split.
+        float o = std::max(1.0f, std::round(px_[(int)f] / 14.0f));
+        const float ring[8][2] = {{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}};
+        for (const auto& d : ring) blit(d[0] * o, d[1] * o, kBlack, (uint8_t)(alpha * 0.85f));
+        blit(o * 1.5f, o * 1.5f, kBlack, (uint8_t)(alpha * 0.5f));
+        blit(-o, 0, SDL_Color{255, 40, 60, 255}, (uint8_t)(alpha * 0.45f));
+        blit(o, 0, SDL_Color{40, 90, 255, 255}, (uint8_t)(alpha * 0.45f));
     }
     blit(0, 0, c, alpha);
     return w;
@@ -300,6 +322,10 @@ void Menu::draw(Renderer& r) {
             else
                 s += ":" + v;
         }
+        // Clip so a long label never runs into the right-hand note column.
+        size_t room = (size_t)std::max(1.0f, (right - ix) / cw) -
+                      (it.note.empty() ? 0 : utf8_len(it.note) + 1);
+        if (utf8_len(s) > room) s = utf8_cut(s, room);
         SDL_Color fg = it.enabled ? kVcrYellow : kVcrDim;
         if (sel) {
             float tw = r.text_w(F, s);

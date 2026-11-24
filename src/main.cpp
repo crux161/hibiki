@@ -225,6 +225,12 @@ int main(int argc, char** argv) {
             cfg.initial_rpc_seq = std::atoi(argv[++i]);
         else if (a == "--rpc-retries" && i + 1 < argc)
             cfg.rpc_poll_retries = std::atoi(argv[++i]);
+        else if (a == "--demo" || a == "--ts-file" || a == "--menu") {
+            // Front-end options: this is the headless CLI, not the TV app.
+            std::cerr << a << " is a TV front-end option. Run the app binary instead:\n"
+                         "  ./build/hibiki-tv " << a << "   (or: open Hibiki.app --args " << a << ")\n";
+            return 2;
+        }
         else {
             std::cerr << "usage: " << argv[0]
                       << " [--fw <path>] [--freq <hz>] [--port <n>]"

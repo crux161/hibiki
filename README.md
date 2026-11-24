@@ -9,16 +9,36 @@ Requires `libusb`, and for the TV front-end `sdl3`, `sdl3_ttf` and `ffmpeg`
 (Homebrew). The FX2 bridge firmware must already be loaded (`scripts/wake_tuner.py`).
 
 ```sh
-./scripts/build.sh          # CMake -> ./hibiki (CLI) and ./Hibiki.app (TV front-end)
+./scripts/build.sh          # CMake -> ./hibiki (CLI), ./Hibiki.app and ./hibiki-tv
 ./scripts/sign.sh           # ad-hoc codesign Hibiki.app (debug entitlements)
 ./hibiki --scan             # CLI: sweep ATSC channels
 ./hibiki --freq 201028615   # CLI: tune + serve MPEG-TS over HTTP (VLC)
 open ./Hibiki.app           # TV front-end (video + audio + HUD)
+./hibiki-tv --demo          # TV front-end from a shell, with flags (no tuner needed)
 ```
 
+`hibiki` is the headless CLI. The TV front-end is the binary inside the app
+bundle; `hibiki-tv` (also created in the CMake build dir, `build/hibiki-tv`)
+is a symlink to it so front-end flags can be passed directly. From Finder or
+`open`, pass flags with `open Hibiki.app --args --demo`.
+
 On first run (or `--rescan` / `S`) the app scans the US ATSC channel plan,
-remembers the channels that lock (per-user `channels.txt`), and thereafter
-tunes / navigates only those. It reopens on the last channel watched.
+remembers the channels that lock (per-user `channels.txt`) and reads each
+one's PSIP channel table, so the channel list, channel up/down and the HUD all
+use the broadcast's virtual channels (`13-1 KEET-HD`, `13-2 PBSKids`, ...).
+Sub-channels on the RF channel already tuned switch instantly. It reopens on
+the last channel and sub-channel watched.
+
+### Playback pipeline
+
+`src/player.{h,cpp}`: a demux thread reads the TS (tuner ring or file) through
+libavformat into video and audio packet queues; the UI thread decodes, keeps
+~0.25 s of audio queued in SDL, and shows each video frame when its PTS comes
+due on the audio clock (wall clock when there is no audio), dropping late
+frames and resynchronising on timestamp jumps. The UI never blocks on the
+signal, so a dropout freezes the picture with `NO SIGNAL` instead of hanging
+the menus. The status HUD (`H`) shows the measured A/V offset, audio buffer
+and dropped frames; `--stats` prints them every 2 s.
 
 The on-screen display (`src/osd.{h,cpp}`) uses the bundled VCR OSD font
 (`res/font/`): a VHS-style playback HUD (channel, clock, volume, signal) and a
@@ -32,14 +52,14 @@ Front-end controls (remote-style):
 | `Enter` / `Tab` | open MENU (in menus: set) |
 | `Esc` / `Backspace` | back / close menu (no menu: quit) |
 | `↑` `↓` | volume (in menus: select) |
-| `←` `→`, `PageUp` `PageDown` | channel down / up (in menus: adjust value) |
-| `0`–`9` | direct channel entry (commits after 2 digits, `Enter` or 2 s) |
+| `←` `→`, `PageUp` `PageDown` | virtual channel down / up (in menus: adjust value) |
+| `0`–`9`, `-` / `.` | direct entry: `13` = first 13-x, `13-2` = that sub-channel, else RF 13 (commits on `Enter` or 1.5 s) |
 | `C` / `L` | channel list (`Space` toggles favourite) |
 | `G` | program guide (in a channel's listing `←` `→` switch sub-channel, `Enter` = info) |
 | `A` | next audio track |
 | `Z` | screen scale: FIT / FULL / STRETCH |
 | `I` | show channel info banner |
-| `H` | persistent status HUD (signal meter + lock flags) |
+| `H` | persistent status HUD (signal meter, lock flags, A/V sync) |
 | `F` / `M` / `S` / `Q` | fullscreen / mute / auto channel scan / quit |
 
 MENU: channel list, program guide, sub channel (the RF channel's MPEG
@@ -63,10 +83,16 @@ station names. Huffman-compressed strings (A/65 Annex C) are not decoded yet
 and show as `[COMPRESSED]`. `ctest` (or `build/psip_test`) runs the decoder
 against a synthetic PSIP stream; `--demo` feeds the same stream to the UI.
 
-`Hibiki --demo` runs the UI without a tuner (colour bars, fake channel memory),
-and `--keys Return,Down,...` injects key presses at start-up. Combined with
-`--screenshot out.bmp` the demo saves a frame and exits, which is handy for
-checking OSD changes.
+### Testing without an antenna
+
+- `./hibiki-tv --demo` runs the UI with colour bars, fake channel memory and a
+  synthetic PSIP stream. With `--screenshot out.bmp` it saves a frame and exits.
+- `./hibiki-tv --dump-ts cap.ts` records what the tuner delivers; later
+  `./hibiki-tv --ts-file cap.ts --channel 11` replays it in real time (looping)
+  through the same player, PSIP decoder and HUD, without touching the tuner or
+  your saved settings.
+- `--keys G,+1000,Return` scripts key presses (SDL key names; `+ms` waits),
+  e.g. to screenshot the guide once PSIP has arrived.
 
 **Firmware is not redistributable and is NOT in this repo.** Obtain the blobs
 separately (verify against the SHA-256 table below) and place them in `fw/`, or

@@ -5,10 +5,11 @@
 // SDL3 audio stream (audio). The on-screen display (osd.h) draws a VHS-style
 // playback HUD and a blue VCR set-up menu over the picture.
 //
-// Decoding and drawing are decoupled: decoded frames only update the video
-// texture, and the screen is redrawn on every new frame or at least every
-// ~33 ms, so menus stay responsive with no picture (no signal, audio-only
-// stretches, demo mode).
+// Playback lives in player.{h,cpp}: a demux thread feeds packet queues and
+// the main loop decodes, keeps audio as the master clock and shows each video
+// frame when its PTS comes due. The screen is redrawn per frame or at least
+// every ~33 ms, so menus stay responsive with no picture. The raw TS is also
+// handed to the PSIP decoder for channel names and the guide.
 //
 // Remote-style controls (see usage()):
 //   Enter menu, Esc back/quit, Left/Right or PgUp/PgDn channel, Up/Down volume,
@@ -17,6 +18,7 @@
 
 #include "hibiki/tuner.h"
 #include "osd.h"
+#include "player.h"
 #include "psip.h"
 
 #include <SDL3/SDL.h>
@@ -43,6 +45,7 @@ extern "C" {
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <deque>
 #include <map>
 #include <set>
 #include <sstream>
@@ -52,8 +55,6 @@ extern "C" {
 
 namespace {
 
-constexpr int AUDIO_RATE = 48000;
-constexpr int AUDIO_CH = 2;
 const char* DEFAULT_FONT = "/System/Library/Fonts/Supplemental/Arial.ttf";
 const char* VERSION = "0.1.0";
 
@@ -124,135 +125,6 @@ std::string fmt(const char* f, ...) {
     return buf;
 }
 
-// ---------------------------------------------------------------------------
-// FFmpeg AVIO backed by the tuner's TS ring. Every byte the demuxer reads is
-// also fed to the PSIP decoder, since libavformat ignores ATSC PSIP.
-struct TsSource {
-    hibiki::Tuner* tuner = nullptr;
-    psip::Decoder* psip = nullptr;
-};
-
-int ts_read(void* opaque, uint8_t* buf, int size) {
-    auto* src = static_cast<TsSource*>(opaque);
-    while (hibiki::g_running) {
-        int got = src->tuner->ReadTS(buf, (uint32_t)size);
-        if (got > 0) {
-            if (g_dump) std::fwrite(buf, 1, (size_t)got, g_dump);
-            if (src->psip) src->psip->feed(buf, (size_t)got);
-            return got;
-        }
-    }
-    return AVERROR_EOF;
-}
-
-// ---------------------------------------------------------------------------
-// Media (demux + decode) state, rebuilt on every channel change. A broadcast
-// RF channel carries several sub-channels (MPEG programs); `program` is the
-// one being decoded and can be switched without re-probing.
-struct Media {
-    AVFormatContext* fmt = nullptr;
-    int vstream = -1, astream = -1;
-    int program = -1;                 // AVProgram id, -1 = no program table
-    AVCodecContext* vdec = nullptr;
-    AVCodecContext* adec = nullptr;
-    AVFrame* vframe = nullptr;
-    AVFrame* aframe = nullptr;
-    SwsContext* sws = nullptr;
-    AVFrame* yuvframe = nullptr;      // sws target when input isn't yuv420p
-    SwrContext* swr = nullptr;
-    uint8_t* audio_out = nullptr;
-    int audio_out_cap = 0;            // bytes
-    SDL_Texture* vtex = nullptr;
-    SDL_AudioStream* audio = nullptr;
-    int width = 0, height = 0;
-    AVRational sar{0, 1};
-};
-
-void close_video(Media& m) {
-    if (m.vtex) { SDL_DestroyTexture(m.vtex); m.vtex = nullptr; }
-    if (m.yuvframe) av_frame_free(&m.yuvframe);
-    if (m.sws) sws_freeContext(m.sws);
-    m.sws = nullptr;
-    if (m.vframe) av_frame_free(&m.vframe);
-    if (m.vdec) avcodec_free_context(&m.vdec);
-    m.vstream = -1;
-    m.width = m.height = 0;
-    m.sar = AVRational{0, 1};
-}
-
-void close_audio(Media& m) {
-    if (m.audio) { SDL_DestroyAudioStream(m.audio); m.audio = nullptr; }
-    if (m.swr) swr_free(&m.swr);
-    if (m.audio_out) { av_free(m.audio_out); m.audio_out = nullptr; }
-    m.audio_out_cap = 0;  // else push_audio_frame reuses a freed buffer
-    if (m.aframe) av_frame_free(&m.aframe);
-    if (m.adec) avcodec_free_context(&m.adec);
-    m.astream = -1;
-}
-
-void close_media(Media& m) {
-    close_video(m);
-    close_audio(m);
-    if (m.fmt) {
-        // The avio buffer is owned by the AVIOContext; free via avio_context_free.
-        if (m.fmt->pb) avio_context_free(&m.fmt->pb);
-        avformat_close_input(&m.fmt);
-    }
-    m.program = -1;
-}
-
-AVCodecContext* open_decoder(const AVStream* st) {
-    const AVCodec* codec = avcodec_find_decoder(st->codecpar->codec_id);
-    if (!codec) return nullptr;
-    AVCodecContext* ctx = avcodec_alloc_context3(codec);
-    if (!ctx) return nullptr;
-    if (avcodec_parameters_to_context(ctx, st->codecpar) < 0 ||
-        avcodec_open2(ctx, codec, nullptr) < 0) {
-        avcodec_free_context(&ctx);
-        return nullptr;
-    }
-    return ctx;
-}
-
-bool open_video(Media& m, SDL_Renderer* ren, int idx) {
-    const AVStream* st = m.fmt->streams[idx];
-    m.vdec = open_decoder(st);
-    if (!m.vdec) { std::fprintf(stderr, "[-] video decoder open failed\n"); return false; }
-    m.vstream = idx;
-    m.vframe = av_frame_alloc();
-    m.width = m.vdec->width;
-    m.height = m.vdec->height;
-    m.sar = st->sample_aspect_ratio.num ? st->sample_aspect_ratio
-                                        : st->codecpar->sample_aspect_ratio;
-    m.vtex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_IYUV,
-                               SDL_TEXTUREACCESS_STREAMING, m.width, m.height);
-    if (!m.vtex) { std::fprintf(stderr, "[-] SDL texture: %s\n", SDL_GetError()); return false; }
-    return true;
-}
-
-bool open_audio(Media& m, int idx) {
-    m.adec = open_decoder(m.fmt->streams[idx]);
-    if (!m.adec) return false;
-    m.astream = idx;
-    m.aframe = av_frame_alloc();
-    // Resample to interleaved float, stereo, 48 kHz for SDL.
-    AVChannelLayout out_layout = AV_CHANNEL_LAYOUT_STEREO;
-    int ret = swr_alloc_set_opts2(&m.swr,
-        &out_layout, AV_SAMPLE_FMT_FLT, AUDIO_RATE,
-        &m.adec->ch_layout, m.adec->sample_fmt, m.adec->sample_rate, 0, nullptr);
-    if (ret < 0 || swr_init(m.swr) < 0) {
-        std::fprintf(stderr, "[!] audio resampler init failed; audio disabled\n");
-        close_audio(m);
-        return false;
-    }
-    SDL_AudioSpec spec{SDL_AUDIO_F32LE, AUDIO_CH, AUDIO_RATE};
-    m.audio = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
-                                        &spec, nullptr, nullptr);
-    if (!m.audio) std::fprintf(stderr, "[!] SDL audio open failed: %s\n", SDL_GetError());
-    else SDL_ResumeAudioStreamDevice(m.audio);
-    return true;
-}
-
 // Stream indices of `prog` (or of the whole file when prog is null).
 std::vector<int> stream_indices(const AVFormatContext* fmt, const AVProgram* prog) {
     std::vector<int> v;
@@ -282,114 +154,6 @@ std::vector<const AVProgram*> video_programs(const AVFormatContext* fmt) {
         if (!streams_of_type(fmt, fmt->programs[i], AVMEDIA_TYPE_VIDEO).empty())
             v.push_back(fmt->programs[i]);
     return v;
-}
-
-// Only decode what is shown; drop packets of the other sub-channels.
-void apply_discard(Media& m) {
-    for (unsigned i = 0; i < m.fmt->nb_streams; ++i)
-        m.fmt->streams[i]->discard =
-            ((int)i == m.vstream || (int)i == m.astream) ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
-}
-
-// Decode program `prog_id` (-1 = the main service: highest-resolution video).
-bool select_program(Media& m, SDL_Renderer* ren, int prog_id) {
-    close_video(m);
-    close_audio(m);
-    const AVProgram* prog = prog_id >= 0 ? find_program(m.fmt, prog_id) : nullptr;
-    int best = -1, best_area = 0;
-    for (int i : streams_of_type(m.fmt, prog, AVMEDIA_TYPE_VIDEO)) {
-        int area = m.fmt->streams[i]->codecpar->width * m.fmt->streams[i]->codecpar->height;
-        if (best < 0 || area > best_area) { best_area = area; best = i; }
-    }
-    if (best < 0) { std::fprintf(stderr, "[-] no video stream found\n"); return false; }
-    prog = av_find_program_from_stream(m.fmt, nullptr, best);
-    m.program = prog ? prog->id : -1;
-    if (!open_video(m, ren, best)) return false;
-    auto aud = streams_of_type(m.fmt, prog, AVMEDIA_TYPE_AUDIO);
-    if (aud.empty()) aud = streams_of_type(m.fmt, nullptr, AVMEDIA_TYPE_AUDIO);
-    if (!aud.empty()) open_audio(m, aud[0]);
-    apply_discard(m);
-    std::printf("[+] media: program %d, %dx%d video%s\n", m.program, m.width, m.height,
-                m.adec ? " + audio" : "");
-    return true;
-}
-
-bool switch_audio(Media& m, int idx) {
-    close_audio(m);
-    bool ok = open_audio(m, idx);
-    apply_discard(m);
-    return ok;
-}
-
-// Probe the (already locked) channel and start decoding the main service.
-bool open_media(TsSource& src, Media& m, SDL_Renderer* ren) {
-    m.fmt = avformat_alloc_context();
-    if (!m.fmt) return false;
-    auto* buf = static_cast<uint8_t*>(av_malloc(65536));
-    AVIOContext* avio = avio_alloc_context(buf, 65536, 0, &src, ts_read, nullptr, nullptr);
-    if (!avio) { av_free(buf); return false; }
-    m.fmt->pb = avio;
-    m.fmt->probesize = 8 * 1024 * 1024;
-    m.fmt->max_analyze_duration = 5 * AV_TIME_BASE;
-    if (avformat_open_input(&m.fmt, nullptr, nullptr, nullptr) < 0) {
-        // On failure avformat_open_input frees the context but not a custom pb.
-        avio_context_free(&avio);
-        std::fprintf(stderr, "[-] avformat_open_input failed\n");
-        return false;
-    }
-    if (avformat_find_stream_info(m.fmt, nullptr) < 0) {
-        std::fprintf(stderr, "[-] find_stream_info failed\n");
-        return false;
-    }
-    return select_program(m, ren, -1);
-}
-
-void upload_video_frame(Media& m, AVFrame* f) {
-    if (f->width != m.width || f->height != m.height) return;  // mid-stream resize
-    if (f->format == AV_PIX_FMT_YUV420P) {
-        SDL_UpdateYUVTexture(m.vtex, nullptr, f->data[0], f->linesize[0],
-                             f->data[1], f->linesize[1], f->data[2], f->linesize[2]);
-        return;
-    }
-    // Convert unusual pixel formats to yuv420p for the SDL texture.
-    if (!m.sws) {
-        m.sws = sws_getContext(f->width, f->height, (AVPixelFormat)f->format,
-                               m.width, m.height, AV_PIX_FMT_YUV420P,
-                               SWS_BILINEAR, nullptr, nullptr, nullptr);
-        m.yuvframe = av_frame_alloc();
-        m.yuvframe->format = AV_PIX_FMT_YUV420P;
-        m.yuvframe->width = m.width;
-        m.yuvframe->height = m.height;
-        av_frame_get_buffer(m.yuvframe, 32);
-    }
-    if (m.sws && m.yuvframe) {
-        sws_scale(m.sws, f->data, f->linesize, 0, f->height,
-                  m.yuvframe->data, m.yuvframe->linesize);
-        SDL_UpdateYUVTexture(m.vtex, nullptr,
-                             m.yuvframe->data[0], m.yuvframe->linesize[0],
-                             m.yuvframe->data[1], m.yuvframe->linesize[1],
-                             m.yuvframe->data[2], m.yuvframe->linesize[2]);
-    }
-}
-
-void push_audio_frame(Media& m, AVFrame* f) {
-    if (!m.swr || !m.audio) return;
-    int delay = (int)swr_get_delay(m.swr, f->sample_rate);
-    int out_samples = f->nb_samples + delay;
-    int need = out_samples * AUDIO_CH * (int)sizeof(float);
-    if (need > m.audio_out_cap) {
-        av_free(m.audio_out);
-        m.audio_out_cap = need + 4096;
-        m.audio_out = static_cast<uint8_t*>(av_malloc(m.audio_out_cap));
-    }
-    uint8_t* out[1] = {m.audio_out};
-    int got = swr_convert(m.swr, out, out_samples, (const uint8_t**)f->data, f->nb_samples);
-    if (got > 0) {
-        // Bound latency: if SDL already holds > ~0.5 s, skip this chunk.
-        int queued = SDL_GetAudioStreamQueued(m.audio);
-        if (queued < AUDIO_RATE * AUDIO_CH * (int)sizeof(float) / 2)
-            SDL_PutAudioStreamData(m.audio, m.audio_out, got * AUDIO_CH * (int)sizeof(float));
-    }
 }
 
 std::string audio_label(const AVStream* st) {
@@ -561,6 +325,9 @@ struct Settings {
     bool fav_only = false;     // channel surfing skips non-favourites
     int scan_max = hibiki::ATSC_CH_MAX_POST_REPACK;
     int last_channel = 0;
+    int last_program = -1;     // MPEG program (sub-channel) last watched on it
+    // Favourite virtual channels, keyed rf * 100000 + program (a bare RF
+    // number from older settings marks every sub-channel on that RF).
     std::set<int> favs;
 };
 
@@ -588,6 +355,7 @@ Settings load_settings() {
             s.scan_max = iv >= hibiki::ATSC_CH_MAX ? hibiki::ATSC_CH_MAX
                                                    : hibiki::ATSC_CH_MAX_POST_REPACK;
         else if (k == "last_channel") s.last_channel = iv;
+        else if (k == "last_program") s.last_program = iv;
         else if (k == "favs") {
             std::stringstream ss(v);
             std::string tok;
@@ -602,9 +370,9 @@ void save_settings(const Settings& s) {
     FILE* f = std::fopen(settings_path().c_str(), "w");
     if (!f) return;
     std::fprintf(f, "volume=%.2f\nscale=%d\nhud=%d\nscanlines=%d\nclock24=%d\n"
-                    "fav_only=%d\nscan_max=%d\nlast_channel=%d\nfavs=",
+                    "fav_only=%d\nscan_max=%d\nlast_channel=%d\nlast_program=%d\nfavs=",
                  s.volume, s.scale, (int)s.hud, s.scanlines, (int)s.clock24,
-                 (int)s.fav_only, s.scan_max, s.last_channel);
+                 (int)s.fav_only, s.scan_max, s.last_channel, s.last_program);
     bool first = true;
     for (int c : s.favs) { std::fprintf(f, first ? "%d" : ",%d", c); first = false; }
     std::fprintf(f, "\n");
@@ -645,12 +413,14 @@ void usage(const char* prog) {
         "usage: %s [--channel <n>] [--freq <hz>] [--fw <path>] [--font <ttf>]\n"
         "          [--width <px>] [--height <px>] [--trace] [--no-hud] [--rescan]\n"
         "          [--dump-ts <file>] [--screenshot <bmp>] [--shot-after <ms>]\n"
-        "          [--menu] [--keys <Key,Key,...>] [--demo]\n"
+        "          [--menu] [--keys <Key,Key,...>] [--demo] [--ts-file <capture.ts>]\n"
+        "          [--stats]\n"
         "  Enter menu; Esc back / quit; Left/Right or PgUp/PgDn channel;\n"
         "  Up/Down volume; 0-9 direct channel; C channel list; G guide;\n"
         "  A audio track; Z screen scale; I info; H status HUD; F fullscreen;\n"
         "  M mute; S scan. --demo runs without a tuner (colour bars) to preview\n"
-        "  the OSD; --keys injects key presses at start-up (SDL key names).\n",
+        "  the OSD; --ts-file replays a capture (e.g. from --dump-ts) as RF\n"
+        "  --channel; --keys injects key presses (SDL key names, \"+ms\" waits).\n",
         prog);
 }
 
@@ -660,8 +430,10 @@ struct Options {
     bool channel_explicit = false;
     uint32_t freq_hz = 0;
     std::string fw_path, font_path, dump_path, screenshot_path, keys;
+    std::string ts_file;       // replay a TS capture instead of the tuner
     bool fw_explicit = false, font_explicit = false;
     bool rescan = false, start_menu = false, trace = false, no_hud = false, demo = false;
+    bool stats = false;        // print A/V sync stats every 2 s
     int change_after = 0;      // test hook: auto channel-change after N seconds
     int shot_after_ms = -1;
     int win_w = 1280, win_h = 720;
@@ -674,14 +446,19 @@ public:
 
 private:
     // -- lifecycle / IO --
-    bool tune_to(int ch, uint32_t f);
+    bool tune_to(int ch, uint32_t f, int program = -1);
     void change_channel(int dir);
     void do_scan();
     void poll_status();
     void handle_key(SDL_Keycode k);
     void commit_digits();
-    void apply_gain() { if (m_.audio) SDL_SetAudioStreamGain(m_.audio, muted_ ? 0.0f : set_.volume); }
-    void save() { if (!opt_.demo) save_settings(set_); }
+    void apply_gain() { pl_.set_gain(muted_ ? 0.0f : set_.volume); }
+    bool persist() const { return !opt_.demo && opt_.ts_file.empty(); }
+    // Stream open but no bytes from the tuner for 2 s: antenna / signal lost.
+    bool signal_lost() const { return media_ok_ && pl_.ms_since_data() > 2000; }
+    bool live() const { return opt_.ts_file.empty() && !opt_.demo; }
+    void save() { if (persist()) save_settings(set_); }
+    player::ReadFn make_source();
     void toast(const std::string& s, int ms = 2000) { toast_ = s; toast_until_ = SDL_GetTicks() + ms; }
     void show_banner(int ms = 4000) { banner_until_ = SDL_GetTicks() + ms; }
     int scanned_index(int ch) const;
@@ -690,7 +467,7 @@ private:
     std::string audio_value() const;
     void cycle_audio();
     // -- PSIP / guide --
-    int current_program() const { return media_ok_ ? m_.program : demo_program_; }
+    int current_program() const { return media_ok_ ? pl_.program() : demo_program_; }
     const psip::VirtualChannel* current_vc() const { return psip_.by_program(current_program()); }
     std::vector<const psip::VirtualChannel*> guide_channels() const;
     std::string vc_label(const psip::VirtualChannel& vc) const;
@@ -698,6 +475,20 @@ private:
     std::string rf_names(int rf) const;
     void watch_program(int program_number);
     void psip_housekeeping(bool force = false);
+    // -- virtual channels (PSIP major-minor) across all memorised RF channels --
+    struct VChan {
+        int rf = 0; uint32_t freq = 0; float snr = 0;
+        int major = 0, minor = 0;      // 0-0: no VCT known for this RF
+        int program = -1;
+        std::string name;
+    };
+    void rebuild_vchans();
+    int current_vchan() const;
+    std::string vchan_num(const VChan& v) const;
+    void tune_vchan(const VChan& v);
+    static int fav_key(const VChan& v) { return v.rf * 100000 + std::max(0, v.program); }
+    bool is_fav(const VChan& v) const { return set_.favs.count(fav_key(v)) || set_.favs.count(v.rf); }
+    void read_vct(int rf);
     // -- tuner bring-up (the app stays up without a tuner) --
     bool init_tuner();
     void retry_tuner();
@@ -725,9 +516,10 @@ private:
     SDL_Window* win_ = nullptr;
     SDL_Renderer* ren_ = nullptr;
     hibiki::Tuner tuner_;
-    Media m_;
+    player::Player pl_;
     bool media_ok_ = false;
-    bool have_frame_ = false;
+    FILE* ts_file_ = nullptr;
+    std::vector<uint8_t> ts_tap_;
     osd::Renderer osd_;
     osd::Menu menu_;
     Settings set_;
@@ -750,12 +542,14 @@ private:
     uint64_t menu_refresh_ms_ = 0;
     // PSIP: decoded from the live TS (tapped in ts_read) plus the per-RF cache.
     psip::Decoder psip_;
-    TsSource src_{&tuner_, &psip_};
     int demo_program_ = -1;
     bool tuner_ok_ = false;
     std::vector<std::string> tuner_err_;
     uint64_t psip_saved_gen_ = 0, psip_saved_ms_ = 0;
     std::map<int, std::vector<psip::VirtualChannel>> rf_vct_;  // names per RF, from caches
+    std::vector<VChan> vchans_;
+    uint64_t vchan_gen_ = 0;
+    uint64_t stats_ms_ = 0;
 };
 
 int App::scanned_index(int ch) const {
@@ -764,21 +558,44 @@ int App::scanned_index(int ch) const {
 }
 
 // ---- tuning ----------------------------------------------------------------
-bool App::tune_to(int ch, uint32_t f) {
+player::ReadFn App::make_source() {
+    if (!opt_.ts_file.empty()) {
+        FILE* f = ts_file_;
+        return [f](uint8_t* buf, int size) -> int {
+            size_t n = std::fread(buf, 1, (size_t)size, f);
+            return n > 0 ? (int)n : -1;   // end of capture
+        };
+    }
+    return [this](uint8_t* buf, int size) -> int {
+        int n = tuner_.ReadTS(buf, (uint32_t)size);   // waits up to 100 ms
+        if (n > 0 && g_dump) std::fwrite(buf, 1, (size_t)n, g_dump);
+        return n;
+    };
+}
+
+// Tune RF channel `ch` and start `program` (-1: the last one watched there,
+// else the first virtual channel in its VCT, else the player's main service).
+bool App::tune_to(int ch, uint32_t f, int program) {
     psip_housekeeping(true);   // keep what we learned about the old channel
-    close_media(m_);
+    pl_.close();
     media_ok_ = false;
-    have_frame_ = false;
     psip_.reset();
     demo_program_ = -1;
-    if (!opt_.demo) load_psip_cache(ch, psip_, (int64_t)std::time(nullptr));
+    if (persist()) load_psip_cache(ch, psip_, (int64_t)std::time(nullptr));
     psip_saved_gen_ = psip_.generation();
+    if (program < 0 && ch == set_.last_channel && set_.last_program >= 0) program = set_.last_program;
+    if (program < 0) {
+        auto it = rf_vct_.find(ch);
+        if (it != rf_vct_.end())
+            for (const auto& vc : it->second)
+                if (!vc.hidden && vc.service_type != 4) { program = vc.program_number; break; }
+    }
     channel_ = ch;
     freq_ = f;
     set_.last_channel = ch;
     save();
     show_banner();
-    if (!opt_.demo && !tuner_ok_) return false;
+    if (live() && !tuner_ok_) return false;
     tuning_ = fmt("TUNING CH %d", ch);
     present();   // the tune below blocks for up to several seconds
     bool ok = false;
@@ -788,8 +605,16 @@ bool App::tune_to(int ch, uint32_t f) {
         if (ok) {   // synthetic PSIP through the real decoder
             std::vector<uint8_t> ts = psip::build_demo_ts(ch, (int64_t)std::time(nullptr));
             psip_.feed(ts.data(), ts.size());
-            if (!psip_.channels().empty()) demo_program_ = psip_.channels()[0].program_number;
+            demo_program_ = program >= 0 ? program
+                          : psip_.channels().empty() ? -1 : psip_.channels()[0].program_number;
         }
+    } else if (!opt_.ts_file.empty()) {
+        if (ts_file_) std::fclose(ts_file_);
+        ts_file_ = std::fopen(opt_.ts_file.c_str(), "rb");
+        if (!ts_file_) std::fprintf(stderr, "[-] cannot open %s\n", opt_.ts_file.c_str());
+        tuning_ = fmt("CH %d  READING STREAM", ch);
+        present();
+        ok = ts_file_ && pl_.open(make_source(), ren_, program);
     } else {
         std::printf("[*] tuning channel %d (%.3f MHz)...\n", ch, f / 1e6);
         hibiki::AtscStatus st;
@@ -797,49 +622,144 @@ bool App::tune_to(int ch, uint32_t f) {
             std::printf("[+] locked (SNR %.1f dB)\n", st.snr_db_tenths / 10.0);
             tuning_ = fmt("CH %d  READING STREAM", ch);
             present();
-            ok = open_media(src_, m_, ren_);
-            if (!ok) close_media(m_);
+            ok = pl_.open(make_source(), ren_, program);
         } else {
             std::fprintf(stderr, "[-] channel %d did not lock\n", ch);
         }
     }
     tuning_.clear();
     media_ok_ = ok && !opt_.demo;
+    if (media_ok_) { set_.last_program = pl_.program(); save(); }
     apply_gain();
     st_ms_ = 0;   // refresh signal status right away
+    rebuild_vchans();
     return ok;
 }
-
+// Channel up/down walks the virtual channels (13-1, 13-2, 13-4, 15-1 ...);
+// sub-channels on the RF already tuned switch instantly without a retune.
 void App::change_channel(int dir) {
-    std::vector<ChannelEntry> list;
-    for (const auto& e : scanned_)
-        if (!set_.fav_only || set_.favs.empty() || set_.favs.count(e.ch)) list.push_back(e);
+    std::vector<VChan> list;
+    bool any_fav = false;
+    for (const auto& v : vchans_) any_fav |= is_fav(v);
+    for (const auto& v : vchans_)
+        if (!set_.fav_only || !any_fav || is_fav(v)) list.push_back(v);
     if (list.empty()) {
         int nch = channel_ + dir;
         uint32_t nf = hibiki::atsc_channel_freq_hz(nch);
         if (nf) tune_to(nch, nf);
         return;
     }
-    // Next channel in `list` after/before the current one (which may not be in it).
-    int n = (int)list.size(), pick = dir > 0 ? 0 : n - 1;
-    for (int i = 0; i < n; ++i) {
-        int j = dir > 0 ? i : n - 1 - i;
-        if (dir > 0 ? list[j].ch > channel_ : list[j].ch < channel_) { pick = j; break; }
+    int n = (int)list.size(), cur = -1;
+    int ci = current_vchan();
+    if (ci >= 0)
+        for (int i = 0; i < n; ++i)
+            if (list[i].rf == vchans_[ci].rf && list[i].program == vchans_[ci].program) cur = i;
+    int pick;
+    if (cur >= 0) {
+        pick = ((cur + dir) % n + n) % n;
+    } else {   // current channel is filtered out: next one by RF order
+        pick = dir > 0 ? 0 : n - 1;
+        for (int i = 0; i < n; ++i) {
+            int j = dir > 0 ? i : n - 1 - i;
+            if (dir > 0 ? list[j].rf > channel_ : list[j].rf < channel_) { pick = j; break; }
+        }
     }
-    tune_to(list[pick].ch, list[pick].freq);
+    tune_vchan(list[pick]);
 }
-
+// "13" -> first 13-x, "13-2" -> 13-2; no such virtual channel -> RF 13.
 void App::commit_digits() {
     if (digits_.empty()) return;
-    int ch = std::atoi(digits_.c_str());
+    std::string d = digits_;
     digits_.clear();
-    uint32_t f = hibiki::atsc_channel_freq_hz(ch);
-    if (!f) { toast(fmt("CH %d NOT IN PLAN", ch)); return; }
-    tune_to(ch, f);
+    size_t dash = d.find('-');
+    int major = std::atoi(d.substr(0, dash).c_str());
+    int minor = dash != std::string::npos && dash + 1 < d.size() ? std::atoi(d.substr(dash + 1).c_str()) : -1;
+    const VChan* best = nullptr;
+    for (const auto& v : vchans_) {
+        if (v.major != major || (minor >= 0 && v.minor != minor)) continue;
+        if (!best || v.minor < best->minor) best = &v;
+    }
+    if (best) { VChan v = *best; tune_vchan(v); return; }
+    if (dash != std::string::npos) { toast("CH " + d + " NOT FOUND"); return; }
+    uint32_t f = hibiki::atsc_channel_freq_hz(major);
+    if (!f) { toast(fmt("CH %d NOT IN PLAN", major)); return; }
+    tune_to(major, f);
 }
 
+void App::rebuild_vchans() {
+    vchans_.clear();
+    for (const auto& e : scanned_) {
+        const std::vector<psip::VirtualChannel>* vct = nullptr;
+        if (e.ch == channel_ && !psip_.channels().empty()) vct = &psip_.channels();
+        else if (auto it = rf_vct_.find(e.ch); it != rf_vct_.end() && !it->second.empty()) vct = &it->second;
+        bool added = false;
+        if (vct) {
+            for (const auto& c : *vct) {
+                if (c.hidden || c.service_type == 4) continue;   // hidden / data-only
+                vchans_.push_back({e.ch, e.freq, e.snr, c.major, c.minor, c.program_number,
+                                   vcr_text(c.name, 7)});
+                added = true;
+            }
+        }
+        if (!added) vchans_.push_back({e.ch, e.freq, e.snr, 0, 0, -1, ""});
+    }
+    std::stable_sort(vchans_.begin(), vchans_.end(), [](const VChan& a, const VChan& b) {
+        int ka = a.major ? a.major : a.rf, kb = b.major ? b.major : b.rf;
+        return ka != kb ? ka < kb : a.minor < b.minor;
+    });
+    vchan_gen_ = psip_.generation();
+}
+
+int App::current_vchan() const {
+    int pn = current_program(), rf_only = -1;
+    for (size_t i = 0; i < vchans_.size(); ++i) {
+        if (vchans_[i].rf != channel_) continue;
+        if (vchans_[i].program == pn && pn >= 0) return (int)i;
+        if (rf_only < 0) rf_only = (int)i;
+    }
+    return rf_only;
+}
+
+std::string App::vchan_num(const VChan& v) const {
+    return v.major ? fmt("%d-%d", v.major, v.minor) : fmt("%d", v.rf);
+}
+
+void App::tune_vchan(const VChan& v) {
+    if (v.rf == channel_ && (media_ok_ || opt_.demo) && v.program >= 0) watch_program(v.program);
+    else tune_to(v.rf, v.freq, v.program);
+}
+
+// Read the VCT straight off the tuner right after a scan lock (TVCT repeats
+// at least every 400 ms) so the channel list has names before anything is
+// watched. Merges into, and saves, the RF channel's PSIP cache.
+void App::read_vct(int rf) {
+    if (opt_.demo) {
+        psip::Decoder d;
+        std::vector<uint8_t> ts = psip::build_demo_ts(rf, (int64_t)std::time(nullptr));
+        d.feed(ts.data(), ts.size());
+        rf_vct_[rf] = d.channels();
+        return;
+    }
+    psip::Decoder d;
+    int64_t now = (int64_t)std::time(nullptr);
+    load_psip_cache(rf, d, now);
+    size_t had = d.channels().size();
+    uint64_t seen = d.sections_ok();
+    std::vector<uint8_t> buf(64 * 1024);
+    uint64_t t0 = SDL_GetTicks(), got_vct = 0;
+    while (SDL_GetTicks() - t0 < 2500 && hibiki::g_running) {
+        int n = tuner_.ReadTS(buf.data(), (uint32_t)buf.size());
+        if (n > 0) d.feed(buf.data(), (size_t)n);
+        if (!got_vct && d.channels().size() > had) got_vct = SDL_GetTicks();
+        if (got_vct && SDL_GetTicks() - got_vct > 500) break;   // let multi-section VCTs finish
+    }
+    if (d.sections_ok() > seen && !d.channels().empty()) {
+        rf_vct_[rf] = d.channels();
+        save_psip_cache(rf, d, d.now_utc());
+    }
+}
 void App::poll_status() {
-    if (opt_.no_hud || (!opt_.demo && !tuner_ok_)) return;
+    if (opt_.no_hud || !opt_.ts_file.empty() || (live() && !tuner_ok_)) return;
     uint64_t now = SDL_GetTicks();
     if (st_ms_ && now - st_ms_ < 500) return;
     st_ms_ = now;
@@ -855,10 +775,10 @@ void App::poll_status() {
 }
 
 void App::do_scan() {
+    if (!opt_.ts_file.empty()) { toast("NO SCAN WHEN REPLAYING A FILE"); return; }
     if (!opt_.demo && !tuner_ok_) { toast("NO TUNER - CANNOT SCAN"); return; }
-    close_media(m_);
+    pl_.close();
     media_ok_ = false;
-    have_frame_ = false;
     menu_.close();
     std::vector<ChannelEntry> prev = scanned_, found, maybe;
     bool cancel = false;
@@ -897,7 +817,10 @@ void App::do_scan() {
                      st.snr_db_tenths / 10.0, st.carrier_offset_hz,
                      st.frame_lock, st.atsc_lock, st.fec_lock,
                      r == 2 ? "LOCK" : r == 1 ? "partial" : "none");
-        if (r == 2) found.push_back({ch, f, st.snr_db_tenths / 10.0f});
+        if (r == 2) {
+            found.push_back({ch, f, st.snr_db_tenths / 10.0f});
+            read_vct(ch);
+        }
         else if (r == 1) maybe.push_back({ch, f, st.snr_db_tenths / 10.0f});
     }
     // Weak stations can take several seconds to reach FEC lock; re-probe the
@@ -909,8 +832,10 @@ void App::do_scan() {
         pump();
         if (cancel) break;
         hibiki::AtscStatus st;
-        if (probe(e.ch, e.freq, 5000, st) == 2)
+        if (probe(e.ch, e.freq, 5000, st) == 2) {
             found.push_back({e.ch, e.freq, st.snr_db_tenths / 10.0f});
+            read_vct(e.ch);
+        }
     }
     std::sort(found.begin(), found.end(),
               [](const ChannelEntry& a, const ChannelEntry& b) { return a.ch < b.ch; });
@@ -934,32 +859,34 @@ void App::do_scan() {
 // ---- labels ----------------------------------------------------------------
 std::string App::res_label() const {
     if (opt_.demo) return "640X480";
-    if (!media_ok_) return "---";
-    return fmt("%dX%d", m_.width, m_.height);
+    if (!media_ok_ || !pl_.width()) return "---";
+    return fmt("%dX%d", pl_.width(), pl_.height());
 }
 
 std::string App::subch_label() const {
     if (const psip::VirtualChannel* vc = current_vc()) return vc_label(*vc);
     if (!media_ok_) return "---";
-    auto progs = video_programs(m_.fmt);
+    auto progs = video_programs(pl_.format());
     for (size_t i = 0; i < progs.size(); ++i)
-        if (progs[i]->id == m_.program) return fmt("%zu/%zu", i + 1, progs.size());
+        if (progs[i]->id == pl_.program()) return fmt("%zu/%zu", i + 1, progs.size());
     return "1/1";
 }
 
 std::string App::audio_value() const {
-    if (!media_ok_ || m_.astream < 0) return "NONE";
-    auto aud = streams_of_type(m_.fmt, find_program(m_.fmt, m_.program), AVMEDIA_TYPE_AUDIO);
-    size_t pos = std::find(aud.begin(), aud.end(), m_.astream) - aud.begin();
-    return fmt("%zu ", pos + 1) + audio_label(m_.fmt->streams[m_.astream]);
+    if (!media_ok_ || pl_.audio_stream() < 0) return "NONE";
+    const AVFormatContext* fc = pl_.format();
+    auto aud = streams_of_type(fc, find_program(fc, pl_.program()), AVMEDIA_TYPE_AUDIO);
+    size_t pos = std::find(aud.begin(), aud.end(), pl_.audio_stream()) - aud.begin();
+    return fmt("%zu ", pos + 1) + audio_label(fc->streams[pl_.audio_stream()]);
 }
 
 void App::cycle_audio() {
     if (!media_ok_) return;
-    auto aud = streams_of_type(m_.fmt, find_program(m_.fmt, m_.program), AVMEDIA_TYPE_AUDIO);
+    const AVFormatContext* fc = pl_.format();
+    auto aud = streams_of_type(fc, find_program(fc, pl_.program()), AVMEDIA_TYPE_AUDIO);
     if (aud.size() < 2) { toast("AUDIO: " + audio_value()); return; }
-    size_t pos = std::find(aud.begin(), aud.end(), m_.astream) - aud.begin();
-    switch_audio(m_, aud[(pos + 1) % aud.size()]);
+    size_t pos = std::find(aud.begin(), aud.end(), pl_.audio_stream()) - aud.begin();
+    pl_.select_audio(aud[(pos + 1) % aud.size()]);
     apply_gain();
     toast("AUDIO: " + audio_value());
 }
@@ -997,20 +924,21 @@ std::string App::rf_names(int rf) const {
 }
 
 void App::watch_program(int pn) {
-    if (pn == current_program()) return;
+    if (pn == current_program()) { show_banner(); return; }
     if (media_ok_) {
-        if (!find_program(m_.fmt, pn) || !select_program(m_, ren_, pn)) {
+        const AVFormatContext* fc = pl_.format();
+        if (!find_program(fc, pn) || !pl_.select_program(pn)) {
             toast("SUB CHANNEL NOT IN STREAM");
-            if (!m_.vdec) select_program(m_, ren_, -1);
+            if (pl_.video_stream() < 0) pl_.select_program(-1);
         }
-        have_frame_ = false;
         apply_gain();
+        set_.last_program = pl_.program();
+        save();
     } else if (opt_.demo) {
         demo_program_ = pn;
     }
     show_banner();
 }
-
 // Persist the current channel's PSIP every 15 s when it changed (and on retune
 // / exit), and keep the per-RF name table for the channel list current.
 void App::psip_housekeeping(bool force) {
@@ -1019,7 +947,7 @@ void App::psip_housekeeping(bool force) {
     uint64_t ms = SDL_GetTicks();
     if (!force && ms - psip_saved_ms_ < 15000) return;
     rf_vct_[channel_] = psip_.channels();
-    if (!opt_.demo) {
+    if (persist()) {
         int64_t now = psip_.now_utc();
         psip_.prune(now);
         save_psip_cache(channel_, psip_, now);
@@ -1100,9 +1028,15 @@ void App::handle_key(SDL_Keycode k) {
     else if (k == SDLK_KP_0) digit = 0;
     if (digit >= 0 && !menu_.open()) {
         if (digits_.empty() && digit == 0) return;
+        if (digits_.size() >= 6) return;
         digits_ += (char)('0' + digit);
         digits_ms_ = SDL_GetTicks();
-        if (digits_.size() >= 2) commit_digits();
+        return;
+    }
+    bool dash = k == SDLK_MINUS || k == SDLK_PERIOD || k == SDLK_KP_MINUS || k == SDLK_KP_PERIOD;
+    if (dash && !menu_.open() && !digits_.empty() && digits_.find('-') == std::string::npos) {
+        digits_ += '-';
+        digits_ms_ = SDL_GetTicks();
         return;
     }
 
@@ -1112,7 +1046,7 @@ void App::handle_key(SDL_Keycode k) {
         else hibiki::g_running = false;
         break;
     case SDLK_Q: hibiki::g_running = false; break;
-    case SDLK_R: if (!opt_.demo && !tuner_ok_) retry_tuner(); break;
+    case SDLK_R: if (live() && !tuner_ok_) retry_tuner(); break;
     case SDLK_RETURN:
     case SDLK_KP_ENTER:
     case SDLK_TAB:
@@ -1173,7 +1107,7 @@ osd::Page App::main_page() {
         it.activate = [this] { menu_.push(programs_page()); };
         pg.items.push_back(it);
         it = {}; it.label = "AUDIO TRACK"; it.value = [this] { return audio_value(); };
-        it.enabled = media_ok_ && m_.astream >= 0;
+        it.enabled = media_ok_ && pl_.audio_stream() >= 0;
         it.activate = [this] { menu_.push(audio_page()); };
         pg.items.push_back(it);
         it = {}; it.label = "SCREEN SCALE";
@@ -1203,11 +1137,11 @@ osd::Page App::channels_page() {
     p.title = "CHANNELS";
     p.hints = {"SELECT:\xE2\x96\xB2\xE2\x96\xBC KEY", "TUNE  :\xE2\x96\xBA KEY",
                "FAV   :SPACE KEY", "END   :ESC KEY"};
-    p.sel = std::max(0, scanned_index(channel_));
+    p.sel = std::max(0, current_vchan());
     p.build = [this](osd::Page& pg) {
         pg.items.clear();
         pg.body.clear();
-        if (scanned_.empty()) {
+        if (vchans_.empty()) {
             pg.body = {"NO CHANNELS MEMORIZED"};
             osd::Item it;
             it.label = "AUTO CH MEMORY";
@@ -1215,30 +1149,32 @@ osd::Page App::channels_page() {
             pg.items.push_back(it);
             return;
         }
-        for (const auto& e : scanned_) {
+        int cur = current_vchan();
+        for (size_t i = 0; i < vchans_.size(); ++i) {
+            const VChan& v = vchans_[i];
+            std::string num = vchan_num(v), name = v.major ? v.name : fmt("%.0fMHZ", v.freq / 1e6);
+            num.resize(std::max<size_t>(num.size() + 1, 6), ' ');
+            name.resize(std::max<size_t>(name.size() + 1, 8), ' ');
             osd::Item it;
-            std::string names = rf_names(e.ch);
-            it.label = names.empty()
-                ? fmt("CH %2d  %7.2f MHZ  %4.1f DB", e.ch, e.freq / 1e6, e.snr)
-                : fmt("CH %2d  %-19s %4.1fDB", e.ch, names.substr(0, 19).c_str(), e.snr);
-            it.marked = e.ch == channel_;
-            if (set_.favs.count(e.ch)) it.note = "FAV";
-            int ch = e.ch; uint32_t f = e.freq;
-            it.activate = [this, ch, f] { menu_.close(); tune_to(ch, f); };
+            it.label = num + name + fmt("RF%-3d%4.1fDB", v.rf, v.snr);
+            it.marked = (int)i == cur;
+            if (is_fav(v)) it.note = "FAV";
+            VChan copy = v;
+            it.activate = [this, copy] { menu_.close(); tune_vchan(copy); };
             pg.items.push_back(it);
         }
     };
     p.on_key = [this](SDL_Keycode k) {
         osd::Page* pg = menu_.top();
-        if (k != SDLK_SPACE || !pg || scanned_.empty()) return false;
-        int ch = scanned_[(size_t)std::clamp(pg->sel, 0, (int)scanned_.size() - 1)].ch;
-        if (!set_.favs.erase(ch)) set_.favs.insert(ch);
+        if (k != SDLK_SPACE || !pg || vchans_.empty()) return false;
+        const VChan& v = vchans_[(size_t)std::clamp(pg->sel, 0, (int)vchans_.size() - 1)];
+        if (is_fav(v)) { set_.favs.erase(fav_key(v)); set_.favs.erase(v.rf); }
+        else set_.favs.insert(fav_key(v));
         save();
         return true;
     };
     return p;
 }
-
 osd::Page App::guide_page() {
     osd::Page p;
     p.title = "PROGRAM GUIDE";
@@ -1398,10 +1334,11 @@ osd::Page App::programs_page() {
             if (it.marked) pg.sel = (int)pg.items.size() - 1;
         };
         if (media_ok_) {
-            for (const AVProgram* pr : video_programs(m_.fmt)) {
-                auto v = streams_of_type(m_.fmt, pr, AVMEDIA_TYPE_VIDEO);
-                auto a = streams_of_type(m_.fmt, pr, AVMEDIA_TYPE_AUDIO);
-                const AVCodecParameters* cp = m_.fmt->streams[v[0]]->codecpar;
+            const AVFormatContext* fc = pl_.format();
+            for (const AVProgram* pr : video_programs(fc)) {
+                auto v = streams_of_type(fc, pr, AVMEDIA_TYPE_VIDEO);
+                auto a = streams_of_type(fc, pr, AVMEDIA_TYPE_AUDIO);
+                const AVCodecParameters* cp = fc->streams[v[0]]->codecpar;
                 add(pr->id, fmt("%dX%d", cp->width, cp->height), fmt("%zu AUD", a.size()));
             }
         } else {
@@ -1418,15 +1355,16 @@ osd::Page App::audio_page() {
     p.build = [this](osd::Page& pg) {
         pg.items.clear();
         if (!media_ok_) return;
-        auto aud = streams_of_type(m_.fmt, find_program(m_.fmt, m_.program), AVMEDIA_TYPE_AUDIO);
+        const AVFormatContext* fc = pl_.format();
+        auto aud = streams_of_type(fc, find_program(fc, pl_.program()), AVMEDIA_TYPE_AUDIO);
         for (size_t i = 0; i < aud.size(); ++i) {
             osd::Item it;
-            it.label = fmt("%zu  ", i + 1) + audio_label(m_.fmt->streams[aud[i]]);
-            it.marked = aud[i] == m_.astream;
+            it.label = fmt("%zu  ", i + 1) + audio_label(fc->streams[aud[i]]);
+            it.marked = aud[i] == pl_.audio_stream();
             int idx = aud[i];
             it.activate = [this, idx] {
-                if (idx == m_.astream) return;
-                switch_audio(m_, idx);
+                if (idx == pl_.audio_stream()) return;
+                pl_.select_audio(idx);
                 apply_gain();
             };
             pg.items.push_back(it);
@@ -1556,11 +1494,12 @@ SDL_FRect App::video_rect(float sw, float sh, float aspect, SDL_FRect* src) cons
 
 void App::draw_picture() {
     SDL_FRect src, dst;
-    if (media_ok_ && have_frame_ && m_.vtex) {
-        float sar = m_.sar.num && m_.sar.den ? (float)av_q2d(m_.sar) : 1.0f;
-        float aspect = m_.height ? m_.width * sar / m_.height : 0;
-        dst = video_rect((float)m_.width, (float)m_.height, aspect, &src);
-        SDL_RenderTexture(ren_, m_.vtex, &src, &dst);
+    if (media_ok_ && pl_.texture()) {
+        dst = video_rect((float)pl_.width(), (float)pl_.height(), (float)pl_.display_aspect(), &src);
+        SDL_RenderTexture(ren_, pl_.texture(), &src, &dst);
+        if (signal_lost() && SDL_GetTicks() / 700 % 2 == 0)   // frozen picture: say why
+            osd_.text(osd::Font::Menu, "NO SIGNAL", osd_.width() / 2.0f, osd_.height() * 0.47f,
+                      osd::kWhite, osd::Align::Center, osd::Style::Vhs);
         return;
     }
     if (opt_.demo && bars_ && tuning_.empty() && scanned_index(channel_) >= 0) {
@@ -1592,20 +1531,26 @@ void App::draw_hud() {
 
     if (banner) {
         // Top-left: transport status / channel / frequency (VHS "PLAY" corner).
-        bool locked = media_ok_ || (opt_.demo && scanned_index(channel_) >= 0);
-        std::string status = !tuning_.empty() ? "TUNE" : locked ? "PLAY \xE2\x96\xBA" : "NO SIGNAL";
+        bool playing = (media_ok_ && !signal_lost()) || (opt_.demo && scanned_index(channel_) >= 0);
+        std::string status = !tuning_.empty() ? "TUNE"
+                           : !playing ? "NO SIGNAL"
+                           : media_ok_ && !pl_.has_frame() ? "WAIT" : "PLAY \xE2\x96\xBA";
         osd_.text(Font::Small, status, mx, my, osd::kWhite, Align::Left, Style::Vhs);
         float y = my + sh;
         float big = osd_.line_h(Font::Big);
         // With PSIP: virtual channel number + station name and what is on now.
         const psip::VirtualChannel* vc = current_vc();
-        std::string num = vc ? fmt("CH %d-%d", vc->major, vc->minor) : fmt("CH %d", channel_);
+        int vi = current_vchan();
+        std::string num = vc ? fmt("CH %d-%d", vc->major, vc->minor)
+                        : vi >= 0 && vchans_[vi].major ? "CH " + vchan_num(vchans_[vi])
+                                                       : fmt("CH %d", channel_);
         osd_.text(Font::Big, num, mx, y, osd::kWhite, Align::Left, Style::Vhs);
         y += big * 0.92f;
-        std::string line = vc ? vcr_text(vc->name, 7) + fmt("  RF %d", channel_)
-                              : fmt("%.2f MHZ", freq_ / 1e6) +
-                                    (media_ok_ ? "  SUB " + subch_label() : std::string());
-        if (set_.favs.count(channel_)) line += "  FAV";
+        std::string name = vc ? vcr_text(vc->name, 7)
+                         : vi >= 0 && vchans_[vi].major ? vchans_[vi].name : std::string();
+        std::string line = name.empty() ? fmt("RF %d  %.2f MHZ", channel_, freq_ / 1e6)
+                                        : name + fmt("  RF %d", channel_);
+        if (vi >= 0 && is_fav(vchans_[vi])) line += "  FAV";
         osd_.text(Font::Small, line, mx, y, osd::kWhite, Align::Left, Style::Vhs);
         y += sh;
         if (vc) {
@@ -1655,13 +1600,20 @@ void App::draw_hud() {
                                            st_.atsc_lock, st_.fec_lock),
                           W - mx, y - sh, osd::kWhite, Align::Right, Style::Vhs, 200);
         } else if (set_.hud) {
-            osd_.text(Font::Small, "SIG ---", W - mx, y, osd::kWhite, Align::Right, Style::Vhs);
+            osd_.text(Font::Small, opt_.ts_file.empty() ? "SIG ---" : "SIG --- REPLAY", W - mx, y,
+                      osd::kWhite, Align::Right, Style::Vhs);
+        }
+        if (set_.hud && media_ok_) {   // playback diagnostics
+            const player::Stats& ps = pl_.stats();
+            osd_.text(Font::Small, fmt("AV %+.3fS BUF %.2fS DROP %llu", ps.av_offset,
+                                       ps.audio_latency, (unsigned long long)ps.frames_dropped),
+                      W - mx, y - sh * 2, osd::kWhite, Align::Right, Style::Vhs, 200);
         }
     }
 
     // Direct channel entry ("CH 1-").
     if (!digits_.empty()) {
-        std::string d = "CH " + digits_ + "-";
+        std::string d = "CH " + digits_ + (digits_.find('-') == std::string::npos ? "-" : "_");
         osd_.text(Font::Big, d, W - mx, my + sh * 2.2f, osd::kVcrYellow, Align::Right, Style::Vhs);
     }
 }
@@ -1670,7 +1622,7 @@ void App::maybe_screenshot() {
     uint64_t now = SDL_GetTicks();
     int shot_after = opt_.shot_after_ms >= 0 ? opt_.shot_after_ms : (opt_.demo ? 1200 : 6000);
     if (!opt_.screenshot_path.empty() && !shot_saved_ && now - start_ms_ > (uint64_t)shot_after &&
-        (have_frame_ || opt_.demo || (!media_ok_ && tuning_.empty()))) {
+        (pl_.has_frame() || opt_.demo || (!media_ok_ && tuning_.empty()))) {
         if (SDL_Surface* s = SDL_RenderReadPixels(ren_, nullptr)) {
             SDL_SaveBMP(s, opt_.screenshot_path.c_str());
             std::printf("[+] screenshot saved: %s\n", opt_.screenshot_path.c_str());
@@ -1760,13 +1712,20 @@ int App::run() {
     if (!osd_.init(ren_, font_path))
         std::fprintf(stderr, "[!] font load failed (%s); OSD text disabled\n", font_path.c_str());
 
-    set_ = opt_.demo ? Settings{} : load_settings();
+    set_ = persist() ? load_settings() : Settings{};
     fw_path_ = resolve_fw(opt_.fw_path, opt_.fw_explicit);
     if (opt_.demo) {
         bars_ = make_color_bars(ren_);
-        for (int c : {7, 9, 11, 14, 20, 27, 33})
+        for (int c : {7, 9, 11, 14, 20, 27, 33}) {
             scanned_.push_back({c, hibiki::atsc_channel_freq_hz(c), 18.0f + c * 0.3f});
-        set_.favs = {11, 27};
+            read_vct(c);
+        }
+        set_.favs = {11 * 100000 + 1, 27 * 100000 + 2};
+    } else if (!opt_.ts_file.empty()) {
+        // Replay: the capture stands in for one memorised RF channel.
+        int rf = opt_.channel;
+        scanned_.push_back({rf, hibiki::atsc_channel_freq_hz(rf), 0.0f});
+        std::printf("[*] replaying %s as RF %d\n", opt_.ts_file.c_str(), rf);
     } else {
         scanned_ = load_channels();
         for (const auto& e : scanned_) {
@@ -1776,6 +1735,7 @@ int App::run() {
         if (init_tuner() && (opt_.rescan || scanned_.empty())) do_scan();
     }
     if (!hibiki::g_running) { tuner_.Close(); return 0; }
+    rebuild_vchans();
 
     // Start channel: --channel/--freq, else the last watched, else the first scanned.
     int ch = opt_.channel;
@@ -1790,23 +1750,22 @@ int App::run() {
     if (!media_ok_ || channel_ != ch) tune_to(ch, f);
 
     if (opt_.start_menu) menu_.push(main_page());
-    if (!opt_.demo && !tuner_ok_) menu_.push(tuner_error_page());
-    // Test hook: inject key presses (SDL key names, comma separated).
+    if (live() && !tuner_ok_) menu_.push(tuner_error_page());
+    // Test hook: scripted key presses (SDL key names, comma separated; a
+    // "+ms" token waits that long before the next key).
+    std::deque<std::pair<uint64_t, SDL_Keycode>> script;
     if (!opt_.keys.empty()) {
         std::stringstream ss(opt_.keys);
         std::string name;
+        uint64_t at = SDL_GetTicks();
         while (std::getline(ss, name, ',')) {
+            if (!name.empty() && name[0] == '+') { at += (uint64_t)std::atoi(name.c_str() + 1); continue; }
             SDL_Keycode k = SDL_GetKeyFromName(name.c_str());
             if (k == SDLK_UNKNOWN) { std::fprintf(stderr, "[!] unknown key '%s'\n", name.c_str()); continue; }
-            SDL_Event e{};
-            e.type = SDL_EVENT_KEY_DOWN;
-            e.key.key = k;
-            e.key.down = true;
-            SDL_PushEvent(&e);
+            script.emplace_back(at, k);
         }
     }
 
-    AVPacket* pkt = av_packet_alloc();
     bool did_auto_change = false;
     while (hibiki::g_running) {
         uint64_t now = SDL_GetTicks();
@@ -1821,43 +1780,48 @@ int App::run() {
             if (ev.type == SDL_EVENT_QUIT) hibiki::g_running = false;
             else if (ev.type == SDL_EVENT_KEY_DOWN) handle_key(ev.key.key);
         }
+        while (!script.empty() && SDL_GetTicks() >= script.front().first) {
+            SDL_Keycode k = script.front().second;
+            script.pop_front();
+            handle_key(k);
+        }
         if (!hibiki::g_running) break;
-        if (!digits_.empty() && SDL_GetTicks() - digits_ms_ > 2000) commit_digits();
+        if (!digits_.empty() && SDL_GetTicks() - digits_ms_ > 1500) commit_digits();
         poll_status();
         psip_housekeeping();
 
         bool dirty = false;
         if (media_ok_) {
-            int ret = av_read_frame(m_.fmt, pkt);
-            if (ret == AVERROR_EOF) break;
-            if (ret >= 0) {
-                if (pkt->stream_index == m_.vstream && m_.vdec) {
-                    avcodec_send_packet(m_.vdec, pkt);
-                    while (avcodec_receive_frame(m_.vdec, m_.vframe) == 0) {
-                        upload_video_frame(m_, m_.vframe);
-                        have_frame_ = true;
-                        dirty = true;
-                        av_frame_unref(m_.vframe);
-                    }
-                } else if (pkt->stream_index == m_.astream && m_.adec) {
-                    avcodec_send_packet(m_.adec, pkt);
-                    while (avcodec_receive_frame(m_.adec, m_.aframe) == 0) {
-                        push_audio_frame(m_, m_.aframe);
-                        av_frame_unref(m_.aframe);
-                    }
+            pl_.take_ts(ts_tap_);
+            if (!ts_tap_.empty()) psip_.feed(ts_tap_.data(), ts_tap_.size());
+            dirty = pl_.service();
+            if (pl_.ended()) {
+                if (!opt_.ts_file.empty()) {    // replay: loop the capture
+                    tune_to(channel_, freq_, pl_.program());
+                } else {
+                    std::fprintf(stderr, "[-] stream ended\n");
+                    pl_.close();
+                    media_ok_ = false;
                 }
-                av_packet_unref(pkt);
             }
         }
-        // With video, present per decoded frame; without, at ~30 Hz so the
-        // OSD (clock, blinking, menus) stays live.
+        if (psip_.generation() != vchan_gen_) rebuild_vchans();
+        if (opt_.stats && media_ok_ && SDL_GetTicks() - stats_ms_ >= 2000) {
+            stats_ms_ = SDL_GetTicks();
+            const player::Stats& ps = pl_.stats();
+            std::printf("[stats] av %+.3f s  audio buf %.3f s  shown %llu  dropped %llu  resyncs %llu  "
+                        "psip %zu ch %zu ev\n", ps.av_offset, ps.audio_latency,
+                        (unsigned long long)ps.frames_shown, (unsigned long long)ps.frames_dropped,
+                        (unsigned long long)ps.resyncs, psip_.channels().size(), psip_.event_count());
+            std::fflush(stdout);
+        }
         if (dirty || SDL_GetTicks() - last_present_ >= 33) present();
-        else if (!media_ok_) SDL_Delay(5);
+        else SDL_Delay((Uint32)std::max(1, media_ok_ ? pl_.idle_ms() : 5));
     }
 
-    av_packet_free(&pkt);
     psip_housekeeping(true);
-    close_media(m_);
+    pl_.close();
+    if (ts_file_) std::fclose(ts_file_);
     if (bars_) SDL_DestroyTexture(bars_);
     tuner_.Close();
     osd_.release();
@@ -1884,6 +1848,8 @@ int main(int argc, char** argv) {
         else if (a == "--change-after" && (v = next())) o.change_after = std::atoi(v);
         else if (a == "--menu") o.start_menu = true;
         else if (a == "--demo") o.demo = true;
+        else if (a == "--ts-file" && (v = next())) o.ts_file = v;
+        else if (a == "--stats") o.stats = true;
         else if (a == "--keys" && (v = next())) o.keys = v;
         else if (a == "--country" && (v = next())) {
             if (upper(v) != "US") {
