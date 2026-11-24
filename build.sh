@@ -13,6 +13,11 @@ BUILD_TYPE="${BUILD_TYPE:-Release}"
 cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
 cmake --build "${BUILD_DIR}" -j
 
-# Keep the CLI at the repo root (matches the pre-CMake layout / .gitignore).
+# Keep the binaries at the repo root (matches the pre-CMake layout / .gitignore).
 cp "${BUILD_DIR}/hibiki" ./hibiki
-echo "built ./hibiki"
+if [ -f "${BUILD_DIR}/hibiki_sdl" ]; then
+  cp "${BUILD_DIR}/hibiki_sdl" ./hibiki_sdl
+  echo "built ./hibiki ./hibiki_sdl"
+else
+  echo "built ./hibiki"
+fi

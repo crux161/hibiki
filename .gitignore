@@ -2,6 +2,7 @@
 .qwen/
 build/
 /hibiki
+/hibiki_sdl
 hibiki_*.log
 hibiki_*_*.log
 hibiki_run_*.log

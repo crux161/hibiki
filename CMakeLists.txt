@@ -49,6 +49,41 @@ add_executable(hibiki src/main.cpp)
 target_link_libraries(hibiki PRIVATE hibiki_core)
 target_compile_options(hibiki PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
-# ---- SDL front-end (agreed plan step 4) ----
-# Will add: add_executable(hibiki_sdl ...) linking hibiki_core + SDL2 +
-# libavcodec/libswscale/libswresample. Left out until that step is started.
+# ---- SDL front-end (video + audio + HUD) ----
+# Needs SDL3 + SDL3_ttf + FFmpeg. Homebrew's sdl3/sdl3_ttf .pc files are not on
+# the default pkg-config path, so point pkg-config at them (plus harfbuzz, which
+# sdl3-ttf's .pc requires). The target is skipped if any dependency is missing.
+set(_hibiki_sdl_pc "")
+foreach(_p /opt/homebrew/opt/sdl3/lib/pkgconfig
+           /opt/homebrew/opt/sdl3_ttf/lib/pkgconfig
+           /opt/homebrew/opt/harfbuzz/lib/pkgconfig
+           /opt/homebrew/opt/freetype/lib/pkgconfig
+           /usr/local/opt/sdl3/lib/pkgconfig
+           /usr/local/opt/sdl3_ttf/lib/pkgconfig
+           /usr/local/opt/harfbuzz/lib/pkgconfig
+           /usr/local/opt/freetype/lib/pkgconfig)
+  if(EXISTS "${_p}")
+    list(APPEND _hibiki_sdl_pc "${_p}")
+  endif()
+endforeach()
+if(_hibiki_sdl_pc)
+  string(REPLACE ";" ":" _hibiki_sdl_pc "${_hibiki_sdl_pc}")
+  set(ENV{PKG_CONFIG_PATH} "${_hibiki_sdl_pc}:$ENV{PKG_CONFIG_PATH}")
+endif()
+
+pkg_check_modules(SDL3 QUIET sdl3)
+pkg_check_modules(SDL3_TTF QUIET sdl3-ttf)
+pkg_check_modules(FFMPEG QUIET libavformat libavcodec libavutil libswscale libswresample)
+
+if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
+  add_executable(hibiki_sdl src/sdl_frontend.cpp)
+  target_include_directories(hibiki_sdl PRIVATE
+    ${SDL3_INCLUDE_DIRS} ${SDL3_TTF_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIRS})
+  target_link_directories(hibiki_sdl PRIVATE
+    ${SDL3_LIBRARY_DIRS} ${SDL3_TTF_LIBRARY_DIRS} ${FFMPEG_LIBRARY_DIRS})
+  target_link_libraries(hibiki_sdl PRIVATE
+    hibiki_core ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
+  target_compile_options(hibiki_sdl PRIVATE -Wall -Wextra -Wno-unused-parameter)
+else()
+  message(STATUS "hibiki_sdl skipped (need SDL3 + SDL3_ttf + FFmpeg)")
+endif()
