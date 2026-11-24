@@ -53,10 +53,22 @@ static constexpr uint8_t EP_TS_FALLBACK = 0x82;
 // MxL691 I2C slave address (from the 0x08/0x60/LEN bulk framing).
 static constexpr uint8_t MXL_I2C_ADDR = 0x60;
 
+// FX2 native opcode for "write GPIO port" (bypasses the I2C tunnel).
+// Frame on the wire is [0x0E, port, value]; an ACK byte is read on EP 0x81.
+static constexpr uint8_t OP_FX2_GPIO_WRITE = 0x0E;
+
 // MxL internal register map
 static constexpr uint32_t MXL_REG_RESET    = 0x80000100; // write 2 before FW load
 static constexpr uint32_t MXL_REG_CHIP_ID  = 0x70000188; // sanity read
+// CfgDrvInit(handle, NULL, 3) stores 3 into ctx[8]; CfgDevReset compares the
+// chip-ID read against it. mxl692_attach ignores that status, so so do we.
+static constexpr uint32_t MXL_EXPECTED_CHIP_ID = 0x3;
 static constexpr uint32_t MXL_REG_CPU_GO   = 0x70000018; // write 1 to release
+static constexpr uint32_t MXL_REG_TOP_CLK  = 0x70000010;
+static constexpr uint32_t MXL_REG_PWR_CTL0 = 0x90000000;
+static constexpr uint32_t MXL_REG_PWR_CTL1 = 0x90000018;
+static constexpr uint32_t MXL_REG_XTAL_CTL = 0x90000030;
+static constexpr uint32_t MXL_REG_RF_CTL   = 0x9001014C;
 
 // Bulk framing opcodes
 static constexpr uint8_t OP_I2C_WRITE = 0x08;
@@ -100,8 +112,46 @@ static uint32_t be32_read(const uint8_t* p) {
            (uint32_t)p[2] << 8  | (uint32_t)p[3];
 }
 
-// Eagle RPC frames are DMA-fed as 32-bit lanes. Keep this isolated to the
-// 0xFE/0xFD mailbox path; raw 0xFC firmware memory writes are not swapped.
+static uint32_t le32_read(const uint8_t* p) {
+    return (uint32_t)p[0] | (uint32_t)p[1] << 8 |
+           (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+
+// Global trace switch; toggled by --trace.
+static bool g_trace = false;
+static bool g_skip_soft_reset = false;
+static bool g_skip_pre_fw_config = false;
+static bool g_verify_fw = false;
+static int g_fw_boot_delay_ms = 50;
+// CfgDrvInit seeds ctx[0] with 1 and SendAndReceive transmits the pre-increment
+// value, so the first RPC on the wire carries seq=1.
+static int g_initial_rpc_seq = 1;
+static int g_rpc_poll_retries = MXL_RPC_POLL_RETRIES;
+
+static void hex_dump(const char* tag, const uint8_t* p, size_t n) {
+    if (!g_trace) return;
+    std::cerr << tag << " [" << n << "]";
+    for (size_t i = 0; i < n; ++i) {
+        if (i % 16 == 0) std::cerr << "\n  ";
+        std::cerr << std::hex << std::setw(2) << std::setfill('0')
+                  << (int)p[i] << " ";
+    }
+    std::cerr << std::dec << std::setfill(' ') << "\n";
+}
+
+static void hex_dump_always(const char* tag, const uint8_t* p, size_t n) {
+    std::cerr << tag << " [" << n << "]";
+    for (size_t i = 0; i < n; ++i) {
+        if (i % 16 == 0) std::cerr << "\n  ";
+        std::cerr << std::hex << std::setw(2) << std::setfill('0')
+                  << (int)p[i] << " ";
+    }
+    std::cerr << std::dec << std::setfill(' ') << "\n";
+}
+
+// Eagle RPC frames are DMA-fed as 32-bit lanes. Keep this helper isolated to
+// the 0xFE/0xFD mailbox path; firmware segment upload has its own explicit
+// DownloadFwSegment byte order.
 static void swap_words_be(uint8_t* p, size_t n) {
     for (size_t i = 0; i + 4 <= n; i += 4) {
         std::swap(p[i + 0], p[i + 3]);
@@ -139,6 +189,8 @@ public:
         // The MxL691 needs a short settle window after the FX2 interface is
         // claimed; starting I2C immediately can race silicon power-up.
         msleep(100);
+
+        next_rpc_seq = static_cast<uint8_t>(g_initial_rpc_seq & 0xFF);
 
         discover_ts_endpoint();
     }
@@ -187,6 +239,47 @@ public:
                   << std::hex << (int)ts_ep << std::dec << "\n";
     }
 
+    // Send a raw FX2 bulk command (no I2C tunnel wrapping) and read the
+    // 1-byte ACK. Used for FX2 GPIO writes (opcode 0x0E) that drive the
+    // MxL691 hardware reset pin before firmware upload.
+    bool fx2_cmd_write(const uint8_t* frame, size_t len) {
+        std::lock_guard<std::mutex> lk(i2c_mu);
+        int actual = 0;
+        hex_dump("TX FX2", frame, len);
+        int r = libusb_bulk_transfer(dev_handle, EP_I2C_OUT,
+                                     const_cast<uint8_t*>(frame),
+                                     (int)len, &actual, 1000);
+        if (r != 0 || actual != (int)len) {
+            std::cerr << "[-] fx2_cmd_write OUT fail: "
+                      << libusb_error_name(r) << "\n";
+            return false;
+        }
+        uint8_t ack = 0;
+        r = libusb_bulk_transfer(dev_handle, EP_I2C_IN, &ack, 1, &actual, 1000);
+        if (r != 0 || actual != 1) {
+            std::cerr << "[-] fx2_cmd_write ACK fail: "
+                      << libusb_error_name(r) << "\n";
+            return false;
+        }
+        hex_dump("RX ACK", &ack, 1);
+        return true;
+    }
+
+    // MxL691/Eagle hardware reset via FX2 GPIO. The native mxl692_attach path
+    // taken for non-Conexant (VID != 0x572) sticks toggles GPIO port 0x80:
+    // write 0, wait 100 ms, write 1, wait 100 ms. This releases the Eagle
+    // from hardware reset so firmware download can land.
+    bool eagle_hw_reset() {
+        const uint8_t lo[3] = {OP_FX2_GPIO_WRITE, 0x80, 0x00};
+        const uint8_t hi[3] = {OP_FX2_GPIO_WRITE, 0x80, 0x01};
+        std::cout << "[*] Eagle HW reset via FX2 GPIO port 0x80...\n";
+        if (!fx2_cmd_write(lo, sizeof(lo))) return false;
+        msleep(100);
+        if (!fx2_cmd_write(hi, sizeof(hi))) return false;
+        msleep(100);
+        return true;
+    }
+
     // Raw bulk write to EP_I2C_OUT, then read the 1-byte Cypress completion
     // response. The native A692 helper only checks that one byte arrived; the
     // byte value itself may be an echoed tunnel opcode such as 0x08.
@@ -200,6 +293,7 @@ public:
         frame.insert(frame.end(), payload, payload + len);
 
         int actual = 0;
+        hex_dump("TX OUT", frame.data(), frame.size());
         int r = libusb_bulk_transfer(dev_handle, EP_I2C_OUT, frame.data(),
                                      (int)frame.size(), &actual, 1000);
         if (r != 0 || actual != (int)frame.size()) {
@@ -215,6 +309,7 @@ public:
                       << libusb_error_name(r) << "\n";
             return false;
         }
+        hex_dump("RX ACK", &ack, 1);
         return true;
     }
 
@@ -236,6 +331,7 @@ public:
         frame.push_back(MXL_I2C_ADDR);
 
         int actual = 0;
+        hex_dump("TX RD-REQ", frame.data(), frame.size());
         int r = libusb_bulk_transfer(dev_handle, EP_I2C_OUT, frame.data(),
                                      (int)frame.size(), &actual, 1000);
         if (r != 0 || actual != (int)frame.size()) return false;
@@ -244,13 +340,19 @@ public:
         r = libusb_bulk_transfer(dev_handle, EP_I2C_IN, tmp.data(), (int)tmp.size(),
                                  &actual, 1000);
         if (r != 0 || actual != (int)tmp.size()) return false;
+        hex_dump("RX IN", tmp.data(), tmp.size());
         std::copy(tmp.begin() + 1, tmp.end(), resp);
         return true;
     }
 
-    // Eagle RPC checksum from MxLWare_EAGLE_UTILS_CheckSumCalc:
-    // sum big-endian 32-bit protocol words with the checksum field cleared,
-    // then XOR with 0xDEADBEEF. Partial trailing words are zero-padded.
+    // Eagle RPC checksum from MxLWare_EAGLE_UTILS_CheckSumCalc. The routine is
+    // endianness-independent: the BE-host branch sums natively loaded dwords,
+    // while the LE-host branch does `rev w10, w10` after the load, so BOTH sum
+    // each 32-bit word of the frame interpreted big-endian (byte 0 is the MSB).
+    // The byte-sliced carry dance in the loop is just a plain 32-bit running
+    // sum. Result is XORed with 0xDEADBEEF; SendAndReceive stores it so that
+    // frame bytes 4..7 hold it big-endian. Partial trailing words are
+    // zero-padded, matching the memset work buffer native reads from.
     uint32_t eagle_rpc_checksum(std::vector<uint8_t> frame) {
         if (frame.size() < 8) return 0;
         frame[4] = frame[5] = frame[6] = frame[7] = 0;
@@ -262,6 +364,8 @@ public:
         return sum ^ 0xDEADBEEF;
     }
 
+    // Wire layout of checksum field after the post-pack word-swap: bytes 4..7
+    // hold the value in big-endian order.
     bool eagle_rpc_checksum_ok(const std::vector<uint8_t>& frame) {
         if (frame.size() < 8) return false;
         uint32_t expected = be32_read(frame.data() + 4);
@@ -289,6 +393,25 @@ public:
             break;
         default:
             break;
+        }
+    }
+
+    // MxLWare_EAGLE_ENDIAN_ReceiveSwap is the RX counterpart of TransmitSwap and
+    // runs after checksum validation. Its jump table only covers cmds
+    // 0x0C..0x26; everything below 0x0C returns untouched. Of the commands
+    // Hibiki issues, only 0x0F (ReqAtscDemodStatus) has a case, which reverses
+    // the u16 at frame +8, the u16 at +10 and the u32 at +12. Cmds 0x0D and
+    // 0x0E map to the plain-return handler, so no-op is correct for them too.
+    void eagle_receive_swap(uint8_t cmd, std::vector<uint8_t>& frame) {
+        auto reverse_field = [&](size_t off, size_t len) {
+            if (off + len <= frame.size())
+                std::reverse(frame.begin() + off, frame.begin() + off + len);
+        };
+
+        if (cmd == 0x0F) {
+            reverse_field(8, 2);
+            reverse_field(10, 2);
+            reverse_field(12, 4);
         }
     }
 
@@ -363,7 +486,7 @@ public:
             return false;
         }
 
-        for (int attempt = 0; attempt < MXL_RPC_POLL_RETRIES; ++attempt) {
+        for (int attempt = 0; attempt < g_rpc_poll_retries; ++attempt) {
             std::vector<uint8_t> rx;
             if (!eagle_read_rpc_response(expected_payload_len, rx)) {
                 msleep(5);
@@ -408,6 +531,8 @@ public:
                 return false;
             }
 
+            eagle_receive_swap(cmd, rx);
+
             if (payload_out && expected_payload_len != 0) {
                 payload_out->assign(rx.begin() + 8, rx.end());
             }
@@ -448,10 +573,11 @@ public:
         return true;
     }
 
-    // Write a single 32-bit value.
+    // Write a single 32-bit register value. Native EnhanceI2cMemWrite stores
+    // the value in host-native order (little-endian on ARM64/x86).
     bool mxl_mem_write_u32(uint32_t addr, uint32_t value) {
         uint8_t v[4];
-        be32_pack(v, value);
+        le32_pack(v, value);
         return mxl_mem_write_chunk(addr, v, 4);
     }
 
@@ -467,7 +593,159 @@ public:
         uint8_t resp[4] = {};
         if (!i2c_tunnel_read(req, sizeof(req), resp, sizeof(resp)))
             return false;
-        out = be32_read(resp);
+        out = le32_read(resp);
+        return true;
+    }
+
+    bool mxl_mem_read(uint32_t addr, uint8_t* data, size_t n) {
+        size_t off = 0;
+        while (off < n) {
+            size_t step = std::min(MXL_CHUNK_MAX, n - off);
+            uint8_t req[6];
+            req[0] = MXL_OP_MEM_READ;
+            req[1] = 0x04;
+            uint32_t a = addr + static_cast<uint32_t>(off);
+            req[2] = a & 0xFF;
+            req[3] = (a >> 8) & 0xFF;
+            req[4] = (a >> 16) & 0xFF;
+            req[5] = (a >> 24) & 0xFF;
+            if (!i2c_tunnel_read(req, sizeof(req), data + off, step))
+                return false;
+            off += step;
+        }
+        return true;
+    }
+
+    bool mxl_update_u32(uint32_t addr, uint32_t clear_mask,
+                        uint32_t set_mask, const char* label) {
+        uint32_t v = 0;
+        if (!mxl_mem_read_u32(addr, v)) {
+            std::cerr << "[-] " << label << " read failed at 0x"
+                      << std::hex << addr << std::dec << "\n";
+            return false;
+        }
+        v = (v & ~clear_mask) | set_mask;
+        if (!mxl_mem_write_u32(addr, v)) {
+            std::cerr << "[-] " << label << " write failed at 0x"
+                      << std::hex << addr << std::dec << "\n";
+            return false;
+        }
+        return true;
+    }
+
+    bool cfg_dev_power_regulators(bool enable) {
+        // Native CfgDevPowerRegulators(enable=1): set byte 3 of 0x90000000
+        // to 0x10, then assert bit 0x800 at 0x90000018.
+        uint32_t v = 0;
+        if (!mxl_mem_read_u32(MXL_REG_PWR_CTL0, v)) {
+            std::cerr << "[-] power regulator read failed\n";
+            return false;
+        }
+        v = (v & 0x00FFFFFFu) | ((enable ? 0x10u : 0x14u) << 24);
+        if (!mxl_mem_write_u32(MXL_REG_PWR_CTL0, v)) {
+            std::cerr << "[-] power regulator write failed\n";
+            return false;
+        }
+        return mxl_update_u32(MXL_REG_PWR_CTL1, 0, 0x00000800u,
+                              "power regulator latch");
+    }
+
+    bool cfg_dev_xtal_a692() {
+        // A692 native attach builds the XTAL parameter block as:
+        //   {26, 0, 0, 0, 1}
+        // and passes it to CfgDevXtal before firmware download.
+        uint32_t v = 0;
+        if (!mxl_mem_read_u32(MXL_REG_PWR_CTL0, v)) {
+            std::cerr << "[-] xtal control read failed\n";
+            return false;
+        }
+        v &= ~0x0000001Fu;
+        v |= 26u;
+        v &= ~0x00000100u;
+        v &= ~0x00000200u;
+        v &= ~0x00010400u;
+        if (!mxl_mem_write_u32(MXL_REG_PWR_CTL0, v)) {
+            std::cerr << "[-] xtal control write failed\n";
+            return false;
+        }
+
+        if (!mxl_update_u32(MXL_REG_XTAL_CTL, 0x00000032u, 0x00000030u,
+                            "xtal mode"))
+            return false;
+        if (!mxl_update_u32(MXL_REG_TOP_CLK, 0, 0x00000008u,
+                            "top clock gate"))
+            return false;
+        if (!mxl_update_u32(MXL_REG_CPU_GO, 0, 0x00000010u,
+                            "cpu clock gate"))
+            return false;
+
+        uint32_t rf = 0;
+        if (!mxl_mem_read_u32(MXL_REG_RF_CTL, rf)) {
+            std::cerr << "[-] xtal rf toggle read failed\n";
+            return false;
+        }
+        rf &= ~0x00001000u;
+        if (!mxl_mem_write_u32(MXL_REG_RF_CTL, rf)) {
+            std::cerr << "[-] xtal rf toggle low failed\n";
+            return false;
+        }
+        rf |= 0x00001000u;
+        if (!mxl_mem_write_u32(MXL_REG_RF_CTL, rf)) {
+            std::cerr << "[-] xtal rf toggle high failed\n";
+            return false;
+        }
+        msleep(50);
+        return true;
+    }
+
+    bool cfg_dev_loopthrough(bool enable) {
+        return mxl_update_u32(MXL_REG_RF_CTL, enable ? 0u : 0x00002000u,
+                              enable ? 0x00002000u : 0u,
+                              "loopthrough");
+    }
+
+    bool cfg_pre_fw_native_a692() {
+        std::cout << "[*] Applying native pre-FW power/XTAL config...\n";
+        if (!cfg_dev_power_regulators(true)) return false;
+        if (!cfg_dev_xtal_a692()) return false;
+        if (!cfg_dev_loopthrough(true)) return false;
+        return true;
+    }
+
+    std::vector<uint8_t> mxl_fw_segment_image(const uint8_t* data, size_t n) {
+        std::vector<uint8_t> swapped(data, data + n);
+        for (size_t i = 0; i + 4 <= swapped.size(); i += 4) {
+            std::swap(swapped[i + 0], swapped[i + 3]);
+            std::swap(swapped[i + 1], swapped[i + 2]);
+        }
+        return swapped;
+    }
+
+    // FW segment payload is stored big-endian per 32-bit word in the M1 file;
+    // DownloadFwSegment byte-reverses each word before handing it to I2C.
+    bool mxl_fw_segment_write(uint32_t addr, const uint8_t* data, size_t n) {
+        if (n % 4 != 0) return false;
+        std::vector<uint8_t> swapped = mxl_fw_segment_image(data, n);
+        return mxl_mem_write(addr, swapped.data(), swapped.size());
+    }
+
+    bool mxl_verify_mem_window(uint32_t addr, const uint8_t* expected,
+                               size_t n, const std::string& label) {
+        std::vector<uint8_t> actual(n, 0);
+        if (!mxl_mem_read(addr, actual.data(), actual.size())) {
+            std::cerr << "[-] " << label << " readback failed at 0x"
+                      << std::hex << addr << std::dec << "\n";
+            return false;
+        }
+        if (!std::equal(actual.begin(), actual.end(), expected)) {
+            std::cerr << "[-] " << label << " readback mismatch at 0x"
+                      << std::hex << addr << std::dec << "\n";
+            hex_dump_always("expected", expected, n);
+            hex_dump_always("actual", actual.data(), actual.size());
+            return false;
+        }
+        std::cout << "[+] " << label << " readback OK at 0x"
+                  << std::hex << addr << std::dec << "\n";
         return true;
     }
 
@@ -485,27 +763,71 @@ public:
         }
         std::vector<uint8_t> fw((std::istreambuf_iterator<char>(f)),
                                  std::istreambuf_iterator<char>());
-        if (fw.size() < 0x10 || fw[0] != 'M' || fw[1] != '1') {
-            std::cerr << "[-] bad fw header (expected 'M1')\n";
+        if (fw.size() < 0x10) {
+            std::cerr << "[-] fw truncated\n";
+            return false;
+        }
+        // Native ValidateFwHeader: exact magic bytes 4D 31 10 02 40 00 00 80.
+        static constexpr uint8_t MAGIC[8] =
+            {0x4D, 0x31, 0x10, 0x02, 0x40, 0x00, 0x00, 0x80};
+        if (std::memcmp(fw.data(), MAGIC, sizeof(MAGIC)) != 0) {
+            std::cerr << "[-] bad fw magic\n";
+            return false;
+        }
+        // Payload length: BE24 at bytes 8..10, equals fw.size() - 0x10.
+        uint32_t hdr_len = ((uint32_t)fw[8] << 16) |
+                           ((uint32_t)fw[9] << 8)  |
+                           (uint32_t)fw[10];
+        if (hdr_len != fw.size() - 0x10) {
+            std::cerr << "[-] fw header length mismatch: hdr=" << hdr_len
+                      << " file-16=" << (fw.size() - 0x10) << "\n";
             return false;
         }
         std::cout << "[+] FW loaded " << fw.size() << " bytes\n";
 
-        // 1. Reset MxL CPU
-        if (!mxl_mem_write_u32(MXL_REG_RESET, 2)) {
-            std::cerr << "[-] reset write failed\n";
+        // 0. HW reset via FX2 GPIO — otherwise the Eagle never responds to
+        //    I2C tunnel traffic and chip-ID reads come back as zero.
+        if (!eagle_hw_reset()) {
+            std::cerr << "[-] HW reset failed\n";
             return false;
         }
-        msleep(100);
 
-        // 2. Chip-ID sanity read (non-fatal)
+        // 1. CfgDevReset. MxL_EAGLE_Oem_DevReset is a no-op stub, so the real
+        // sequence is sleep(100) *then* write 0x80000100 = 2. Native does not
+        // sleep after the write.
+        if (g_skip_soft_reset) {
+            std::cout << "[*] Skipping MxL soft reset before FW load\n";
+        } else {
+            msleep(100);
+            if (!mxl_mem_write_u32(MXL_REG_RESET, 2)) {
+                std::cerr << "[-] reset write failed\n";
+                return false;
+            }
+        }
+
+        // 2. Chip-ID read. CfgDevReset compares this against ctx[8] and returns
+        // status 5 on mismatch, but mxl692_attach discards that status.
         uint32_t chip_id = 0;
         if (mxl_mem_read_u32(MXL_REG_CHIP_ID, chip_id)) {
             std::cout << "[+] MxL chip ID: 0x" << std::hex << chip_id
-                      << std::dec << "\n";
+                      << " (native expects 0x" << MXL_EXPECTED_CHIP_ID
+                      << std::dec << ")\n";
+            if (chip_id != MXL_EXPECTED_CHIP_ID) {
+                std::cerr << "[!] chip ID mismatch (native ignores this)\n";
+            }
         }
 
-        // 3. Walk segments
+        // 3. Native mxl692_attach configures regulators, XTAL, and RF
+        // loopthrough before CfgDevFwDownload. Without this, RAM upload can
+        // verify while the Eagle CPU/ThreadX mailbox remains silent.
+        if (g_skip_pre_fw_config) {
+            std::cout << "[*] Skipping native pre-FW power/XTAL config\n";
+        } else if (!cfg_pre_fw_native_a692()) {
+            std::cerr << "[-] native pre-FW config failed\n";
+            return false;
+        }
+
+        // 4. Walk segments
         size_t off = 0x10;
         int seg = 0;
         while (off + 8 <= fw.size()) {
@@ -530,20 +852,39 @@ public:
             std::vector<uint8_t> seg_data(aligned_len, 0);
             std::copy(fw.begin() + off + 8, fw.begin() + off + 8 + seg_len,
                       seg_data.begin());
-            if (!mxl_mem_write(load_addr, seg_data.data(), seg_data.size())) {
+            if (!mxl_fw_segment_write(load_addr, seg_data.data(),
+                                      seg_data.size())) {
                 std::cerr << "[-] seg " << seg << " upload failed\n";
                 return false;
+            }
+            if (g_verify_fw) {
+                std::vector<uint8_t> expected =
+                    mxl_fw_segment_image(seg_data.data(), seg_data.size());
+                size_t head_len = std::min<size_t>(16, expected.size());
+                if (!mxl_verify_mem_window(load_addr, expected.data(), head_len,
+                                           "seg " + std::to_string(seg) + " head")) {
+                    return false;
+                }
+                size_t tail_len = std::min<size_t>(16, expected.size());
+                uint32_t tail_addr =
+                    load_addr + static_cast<uint32_t>(expected.size() - tail_len);
+                if (!mxl_verify_mem_window(tail_addr,
+                                           expected.data() + expected.size() - tail_len,
+                                           tail_len,
+                                           "seg " + std::to_string(seg) + " tail")) {
+                    return false;
+                }
             }
             off += 8 + aligned_len;
             seg++;
         }
 
-        // 4. Release CPU
+        // 5. Release CPU
         if (!mxl_mem_write_u32(MXL_REG_CPU_GO, 1)) {
             std::cerr << "[-] CPU release failed\n";
             return false;
         }
-        msleep(50);
+        msleep(g_fw_boot_delay_ms);
 
         std::vector<uint8_t> fw_version;
         if (!eagle_send_and_receive(0x08, {}, 4, &fw_version)) {
@@ -570,10 +911,16 @@ public:
         // CfgDevPowerMode: 1 = active
         if (!eagle_send_and_receive(0x02, {0x01})) return false;
 
-        // CfgDevMpegOutParams: exact A692 MPEG/TS output bytes from libPadTV.
+        // CfgDevMpegOutParams: mxl692_attach builds this 12-byte blob at
+        // runtime by comparing the USB PID (held in a libPadTV global) against
+        // the Conexant 0xA682 reference design. On 0xA682 bytes 0 and 7 are
+        // zero; on every other device they are 1 and 3. Bytes 1,2,5,6 are 1,
+        // bytes 3,4 are 0 and bytes 8..11 are 3. The attach-time and
+        // SetPara-time blobs are identical.
+        const bool is_a682 = (PID == 0xA682);
         if (!eagle_send_and_receive(0x01, {
-                0x00, 0x01, 0x01, 0x00,
-                0x00, 0x01, 0x01, 0x00,
+                static_cast<uint8_t>(!is_a682), 0x01, 0x01, 0x00,
+                0x00, 0x01, 0x01, static_cast<uint8_t>(is_a682 ? 0 : 3),
                 0x03, 0x03, 0x03, 0x03
             })) {
             return false;
@@ -594,7 +941,34 @@ public:
         if (!eagle_send_and_receive(0x0E, {})) return false;
 
         std::cout << "[+] ATSC tune sequence complete\n";
-        return true;
+        return wait_atsc_lock();
+    }
+
+    // ReqAtscDemodStatus (cmd 0x0F) returns an 11-byte status block. The A692
+    // SetPara path declares lock only when payload bytes 8, 9 and 10 are all 1;
+    // it then ORs 0x1f into the flag word that libA692_IsLock compares to 0x1f.
+    // ReceiveSwap only touches payload bytes 0..7 for this command, so the three
+    // lock flags are read as-is.
+    bool wait_atsc_lock(int attempts = 10, int interval_ms = 500) {
+        for (int i = 0; i < attempts && g_running; ++i) {
+            std::vector<uint8_t> st;
+            if (!eagle_send_and_receive(0x0F, {}, 11, &st) || st.size() < 11) {
+                std::cerr << "[-] ATSC demod status query failed\n";
+                return false;
+            }
+            bool locked = (st[8] == 1 && st[9] == 1 && st[10] == 1);
+            std::cout << "[*] ATSC status:";
+            for (uint8_t b : st)
+                std::cout << " " << std::hex << std::setw(2)
+                          << std::setfill('0') << (int)b;
+            std::cout << std::dec << std::setfill(' ') << " | lock flags "
+                      << (int)st[8] << (int)st[9] << (int)st[10] << " -> "
+                      << (locked ? "LOCKED" : "no lock") << "\n";
+            if (locked) return true;
+            msleep(interval_ms);
+        }
+        std::cerr << "[-] ATSC never locked (no signal on this frequency?)\n";
+        return false;
     }
 
     // Pull bulk-in from the TS endpoint, write to a single client socket.
@@ -691,18 +1065,41 @@ int main(int argc, char** argv) {
     std::string fw_path = "fw/mbin_mxl_eagle_fw.bin";
     uint32_t freq_hz = 473000000;
     int port = 8080;
+    enum Stage { STAGE_LOAD_ONLY, STAGE_TUNE_ONLY, STAGE_FULL };
+    Stage stage = STAGE_FULL;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a == "--fw" && i + 1 < argc) fw_path = argv[++i];
         else if (a == "--freq" && i + 1 < argc)
             freq_hz = static_cast<uint32_t>(std::strtoul(argv[++i], nullptr, 0));
         else if (a == "--port" && i + 1 < argc) port = std::atoi(argv[++i]);
+        else if (a == "--trace") g_trace = true;
+        else if (a == "--load-only") stage = STAGE_LOAD_ONLY;
+        else if (a == "--tune-only") stage = STAGE_TUNE_ONLY;
+        else if (a == "--skip-soft-reset") g_skip_soft_reset = true;
+        else if (a == "--skip-pre-fw-config") g_skip_pre_fw_config = true;
+        else if (a == "--verify-fw") g_verify_fw = true;
+        else if (a == "--fw-boot-delay" && i + 1 < argc)
+            g_fw_boot_delay_ms = std::atoi(argv[++i]);
+        else if (a == "--rpc-initial-seq" && i + 1 < argc)
+            g_initial_rpc_seq = std::atoi(argv[++i]);
+        else if (a == "--rpc-retries" && i + 1 < argc)
+            g_rpc_poll_retries = std::atoi(argv[++i]);
         else {
             std::cerr << "usage: " << argv[0]
-                      << " [--fw <path>] [--freq <hz>] [--port <n>]\n";
+                      << " [--fw <path>] [--freq <hz>] [--port <n>]"
+                         " [--trace] [--load-only|--tune-only]"
+                         " [--skip-soft-reset] [--skip-pre-fw-config]"
+                         " [--verify-fw]"
+                         " [--fw-boot-delay <ms>] [--rpc-initial-seq <n>]"
+                         " [--rpc-retries <n>]\n";
             return 2;
         }
     }
+    if (g_fw_boot_delay_ms < 0) g_fw_boot_delay_ms = 0;
+    if (g_initial_rpc_seq < 0) g_initial_rpc_seq = 0;
+    if (g_initial_rpc_seq > 255) g_initial_rpc_seq = 255;
+    if (g_rpc_poll_retries < 1) g_rpc_poll_retries = 1;
 
     try {
         HibikiTuner t;
@@ -710,10 +1107,12 @@ int main(int argc, char** argv) {
             std::cerr << "Fatal: FW load failed\n";
             return 1;
         }
+        if (stage == STAGE_LOAD_ONLY) return 0;
         if (!t.tune_atsc_frequency(freq_hz)) {
             std::cerr << "Fatal: ATSC tune failed\n";
             return 1;
         }
+        if (stage == STAGE_TUNE_ONLY) return 0;
         t.serve_http(port);
     } catch (const std::exception& e) {
         std::cerr << "Fatal: " << e.what() << "\n";

@@ -1,3 +1,14 @@
+.DS_Store
+.qwen/
+developers/journal/journal_findings_02.md
+developers/journal/journal_findings_03.md
+developers/journal/journal_findings_04.md
+hibiki
+hibiki_run.log
+hibiki_run_02.log
+hibiki_run_03.log
+hibiki_run_04.log
+hibiki_run_05.log
 # env
 
 venv/
