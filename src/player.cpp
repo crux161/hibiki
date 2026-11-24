@@ -94,11 +94,16 @@ int Player::avio_read(void* opaque, uint8_t* buf, int size) {
 }
 
 bool Player::open(ReadFn read, SDL_Renderer* ren, int program_id, PumpFn pump,
-                  DecoderPreference decoder) {
+                  DecoderPreference decoder,
+                  const video::ProcessingSettings& processing) {
     close();
     read_ = std::move(read);
     ren_ = ren;
     decoder_pref_ = decoder;
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        processing_ = processing;
+    }
     stop_ = false;
     eof_ = false;
     last_data_ms_ = SDL_GetTicks();
@@ -160,6 +165,7 @@ void Player::close() {
         reset_requested_ = false;
         worker_drained_ = false;
         processing_graph_.clear();
+        processing_ = video::ProcessingSettings{};
     }
     {
         std::lock_guard<std::mutex> lk(info_mu_);
@@ -294,7 +300,12 @@ bool Player::open_video(int idx) {
     info.color_space = color_space_name(cp->color_space);
     info.decoder_requested = decoder_pref_ == DecoderPreference::Cpu ? "cpu" : "auto";
     info.decoder_active = "ffmpeg-cpu";
-    info.processing = "passthrough";
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        info.processing = !processing_graph_.empty()
+                              ? processing_graph_
+                              : video::processing_mode_name(processing_.mode);
+    }
     {
         std::lock_guard<std::mutex> lk(info_mu_);
         info_ = info;
@@ -415,6 +426,17 @@ void Player::request_video_reset(const char* reason) {
     if (reason) std::printf("[*] video reset: %s\n", reason);
 }
 
+void Player::set_processing(const video::ProcessingSettings& settings) {
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        processing_ = settings;
+        reset_requested_ = true;
+        bump_generation_locked();
+    }
+    cv_.notify_all();
+    out_cv_.notify_all();
+}
+
 void Player::set_processing_graph(std::string graph) {
     {
         std::lock_guard<std::mutex> lk(out_mu_);
@@ -514,6 +536,7 @@ void Player::video_worker() {
     AVPacket* pkt = nullptr;
     bool configured = false;
     bool configure_failed = false;   // retry only after a reset
+    bool mode_fallback_logged = false;
     int configured_format = -1, configured_width = 0, configured_height = 0;
     bool decoder_eof = false, flushed = false;
     uint64_t gen = 0;
@@ -570,12 +593,27 @@ void Player::video_worker() {
             processor.reset();
             configured = false;
             configure_failed = false;
+            mode_fallback_logged = false;
             flushed = false;
         }
         if (!configured && !configure_failed) {
             AVRational vtb = fmt_->streams[vstream_]->time_base;
             AVRational fps = fmt_->streams[vstream_]->avg_frame_rate;
-            if (processor.configure(decoded, vtb, fps, config)) {
+            video::ProcessorConfig active = config;
+            if (!video::processing_mode_supported(active.mode, decoded->format)) {
+                if (!mode_fallback_logged) {
+                    std::fprintf(stderr,
+                                 "[!] processing mode '%s' does not support pixel "
+                                 "format %d; using pass-through\n",
+                                 video::processing_mode_name(active.mode),
+                                 decoded->format);
+                    mode_fallback_logged = true;
+                }
+                active.mode = video::ProcessingMode::PassThrough;
+                active.field_order = video::FieldOrder::Auto;
+                active.force = false;
+            }
+            if (processor.configure(decoded, vtb, fps, active)) {
                 configured = true;
                 configured_width = processor.info().width;
                 configured_height = processor.info().height;
@@ -618,6 +656,9 @@ void Player::video_worker() {
             std::lock_guard<std::mutex> lk(out_mu_);
             gen = generation_;
             config.graph = processing_graph_;
+            config.mode = processing_.mode;
+            config.field_order = processing_.field_order;
+            config.force = processing_.force;
             if (reset_requested_) {
                 reset_requested_ = false;
                 do_reset = true;
@@ -628,6 +669,7 @@ void Player::video_worker() {
             avcodec_flush_buffers(vdec_);
             configured = false;
             configure_failed = false;
+            mode_fallback_logged = false;
             decoder_eof = flushed = false;
             if (pkt) { av_packet_free(&pkt); pkt = nullptr; }
             continue;

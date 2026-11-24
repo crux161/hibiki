@@ -187,3 +187,94 @@ loses ~5–10% of pictures (unchanged from M0, now applied to processed output
 after a generation check); packet queues are bounded by bytes, packet count
 and media duration, while the processed queue is bounded to 8 pictures /
 32 MiB / 0.6 s.
+
+## M2 CPU processing modes
+
+Recorded 2026-11-24 after adding Auto/BWDIF/YADIF/Bob/Weave/pass-through.
+Default product mode is **Auto**: BWDIF (`mode=send_field:parity=auto:
+deint=interlaced`) bypasses progressive frames and emits one picture per
+field for frames flagged interlaced. BWDIF and YADIF use the roadmap presets;
+`--deinterlace-force` switches them to `deint=all`. Bob reconstructs each
+field with `separatefields,scale=w=iw:h=2*ih:flags=neighbor` (top field first
+according to the frame flags or `--field-order`, nearest-neighbour duplication
+of luma and chroma, border lines duplicated). Weave is a pass-through for
+full-frame decoder output at the coded frame rate. 8-bit planar 4:2:0/4:2:2
+are filtered directly, NV12 is converted with an explicit `format=yuv420p`,
+and other formats (for example the full-range `yuvj420p` H.264 bars fixture)
+fall back to pass-through with a one-time warning.
+
+Method: the same headless replay run as M0/M1 (software renderer), plus a
+mode matrix that captures a screenshot during a 4.6 s replay of each mode and
+measures the even/odd bar offset. Recorded JSON:
+`tests/fixtures/reference/baseline_m2_apple-m4pro-headless.json`.
+
+### Default Auto runs (software renderer)
+
+| Fixture | out fps | dec fps | drops | max A/V (s) | video queue (s) | packet queue (s) | decode ms | process ms | upload ms | present gap (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| progressive_720p5994 | 53.52 | 55.50 | 8 | 0.012 | 0.117 | 1.151 | 0.45 | 0.01 | 2.78 | 63 |
+| interlaced_1080i5994_tff | 53.48 | 27.73 | 8 | 0.011 | 0.117 | 1.068 | 0.71 | 1.31 | 4.18 | 63 |
+| interlaced_480i5994_bff | 54.38 | 27.69 | 8 | 0.012 | 0.117 | 1.068 | 0.26 | 0.94 | 1.57 | 63 |
+| telecine_3_2_1080i | 53.51 | 27.75 | 8 | 0.011 | 0.117 | 1.068 | 0.78 | 1.59 | 4.28 | 63 |
+| mixed_film_video_1080i | 54.38 | 27.68 | 8 | 0.011 | 0.117 | 1.068 | 0.69 | 1.32 | 4.01 | 63 |
+| flags_progressive_as_tff | 61.88 | 29.94 | 0 | 0.001 | 0.100 | 0.267 | 0.24 | 1.01 | 0.85 | 6 |
+| flags_interlaced_as_progressive | 31.95 | 29.95 | 0 | 0.002 | 0.200 | 0.000 | 0.25 | 0.02 | 0.66 | 36 |
+| anamorphic_480p5994 | 50.88 | 54.87 | 5 | 0.009 | 0.117 | 1.101 | 0.24 | 0.01 | 1.27 | 88 |
+| bars_limited_720p | 51.65 | 53.64 | 3 | 0.009 | 0.100 | 0.784 | 0.48 | 0.01 | 3.13 | 66 |
+| bars_full_720p_h264 | 52.35 | 56.30 | 3 | 0.009 | 0.117 | 0.784 | 0.86 | 0.00 | 3.66 | 64 |
+| timestamp_gap_720p | 44.55 | 46.54 | 6 | 0.013 | 0.100 | 1.151 | 0.58 | 0.01 | 3.71 | 64 |
+| resolution_change | 59.75 | 60.00 | 0 | 0.002 | 0.117 | 0.868 | 0.48 | 0.01 | 3.07 | 38 |
+| replay_short_720p | 0.00 | 0.00 | 1 | 0.010 | 0.117 | 0.250 | 0.35 | 0.01 | 1.92 | 84 |
+
+`flags_progressive_as_tff` is flagged interlaced, so Auto deinterlaces it
+(59.94 output from progressive content); `flags_interlaced_as_progressive` is
+flagged progressive, so Auto trusts the flags and keeps the coded 29.97 rate
+with combing still present until a force/field-order override is used.
+
+### Processing-mode matrix
+
+| Fixture | Mode | out fps | parity offset (px) | expected | sink time base | tear |
+| --- | --- | --- | --- | --- | --- | --- |
+| interlaced_1080i5994_tff | auto | 53.09 | +0.0 | +0.0 | 1/180000 | no |
+| interlaced_1080i5994_tff | bwdif | 53.51 | +0.0 | +0.0 | 1/180000 | no |
+| interlaced_1080i5994_tff | yadif | 54.52 | +0.0 | +0.0 | 1/180000 | no |
+| interlaced_1080i5994_tff | bob | 52.83 | +0.0 | +0.0 | 1/180000 | no |
+| interlaced_1080i5994_tff | weave | 27.76 | +4.0 | +4.0 | 1/90000 | no |
+| interlaced_1080i5994_tff | passthrough | 28.84 | +4.0 | +4.0 | 1/90000 | no |
+| interlaced_480i5994_bff | bwdif | 53.30 | +0.0 | +0.0 | 1/180000 | no |
+| interlaced_480i5994_bff | weave | 28.69 | -2.0 | -2.0 | 1/90000 | no |
+| progressive_720p5994 | auto | 53.70 | +0.0 | +0.0 | 1/180000 | no |
+| progressive_720p5994 | bwdif (force) | 60.08 | +0.0 | +0.0 | 1/180000 | no |
+
+M2 exit criteria:
+
+* **All modes work through the SDL software renderer.** Every mode above ran
+  through the real front-end with the software renderer; screenshots show the
+  expected field structure (deinterlaced modes have no parity combing, Weave
+  and pass-through keep the paired-field offset).
+* **Cadence.** BWDIF, YADIF, Bob and Auto produce the 59.94 field-rate output
+  from the 29.97 interlaced fixtures (measured 53–55 fps on the dummy
+  software backend after late-frame drops); Auto preserves the 59.94
+  progressive timing (53.5 fps measured, same as pass-through within noise).
+* **Reference comparisons.** `video_processor_tests` checks frame counts,
+  timestamps and sink time bases, top/bottom field order per output, Bob's
+  line duplication and border handling, chroma preservation, 4:2:0/4:2:2
+  filtering, NV12 conversion, explicit rejection of other formats, field-order
+  overrides and mode changes. The replay matrix covers field order, chroma,
+  boundaries, frame counts and timestamps end to end.
+* **Negotiation.** 8-bit planar 4:2:0 and 4:2:2 are the supported filtered
+  formats; NV12 is converted to 4:2:0; other formats fall back to pass-through
+  with a one-time warning (the full-range H.264 bars fixture exercises this).
+
+A physical-presenter spot check with the Metal renderer on the reference
+display (`--deinterlace auto`, 1080i TFF) sustained 55.5–57.8 output fps with
+1.7–1.8 ms decode and 4.4–4.9 ms BWDIF per picture, A/V offset below 6 ms and
+presentation gaps of 116–143 ms; the same run under the dummy software backend
+reported ~1.3 ms BWDIF, so the filter cost depends on CPU scheduling
+alongside presentation.
+
+Performance notes for later milestones: BWDIF costs ~1.3 ms/picture and YADIF
+~3 ms/picture on 1080i in this headless run; Bob ~0.7 ms. The forced
+progressive-to-field-rate case produces 119.88 field pictures but the dummy
+software presenter only sustains ~60 fps with heavy late-frame drops, so that
+mode is a correctness/diagnostic path until M4 measures real hardware.

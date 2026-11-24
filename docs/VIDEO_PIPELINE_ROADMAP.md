@@ -128,6 +128,12 @@ Menus remain responsive while video processing is busy.
 
 ## M2 Ship the CPU processing modes
 
+> **Status 2026-11-24: implemented.** Auto, BWDIF, YADIF, Bob, Weave and
+> pass-through are selectable (`--deinterlace`, `--field-order`,
+> `--deinterlace-force`); all run through the SDL software renderer with the
+> expected cadence and field structure. Reference tests and the recorded mode
+> matrix are in [PLAYBACK_BASELINE.md](PLAYBACK_BASELINE.md).
+
 Use FFmpeg's existing BWDIF and YADIF implementations. Define Bob and Weave
 precisely; keep a small scalar reference for any application-owned pixel code.
 

@@ -14,6 +14,74 @@ extern "C" {
 
 namespace video {
 
+const char* processing_mode_name(ProcessingMode mode) {
+    switch (mode) {
+        case ProcessingMode::Auto: return "auto";
+        case ProcessingMode::Bwdif: return "bwdif";
+        case ProcessingMode::Yadif: return "yadif";
+        case ProcessingMode::Bob: return "bob";
+        case ProcessingMode::Weave: return "weave";
+        default: return "passthrough";
+    }
+}
+
+bool processing_mode_supported(ProcessingMode mode, int pixel_format) {
+    if (mode == ProcessingMode::PassThrough || mode == ProcessingMode::Weave)
+        return true;
+    if (pixel_format == AV_PIX_FMT_NV12) return true;   // converted to yuv420p
+    return pixel_format == AV_PIX_FMT_YUV420P ||
+           pixel_format == AV_PIX_FMT_YUV422P;
+}
+
+namespace {
+const char* parity_name(FieldOrder order) {
+    if (order == FieldOrder::TopFirst) return "tff";
+    if (order == FieldOrder::BottomFirst) return "bff";
+    return "auto";
+}
+
+// Build the FFmpeg graph for a processing mode. Validated against FFmpeg 9.1:
+// send_field on interlaced input doubles the output rate (59.94 from 29.97),
+// deint=interlaced preserves progressive timing, and Bob doubles regardless.
+std::string mode_graph(const ProcessorConfig& config, int pixel_format,
+                       AVRational sar) {
+    std::string prefix;
+    if (pixel_format == AV_PIX_FMT_NV12) prefix += "format=yuv420p,";
+    if (config.field_order != FieldOrder::Auto &&
+        config.mode != ProcessingMode::PassThrough)
+        prefix += std::string("setfield=") +
+                  (config.field_order == FieldOrder::TopFirst ? "tff" : "bff") + ",";
+    const std::string deint = config.force ? "all" : "interlaced";
+    char sar_option[48] = {};
+    if (sar.num > 0 && sar.den > 0)
+        std::snprintf(sar_option, sizeof(sar_option), ",setsar=%d/%d", sar.num, sar.den);
+    switch (config.mode) {
+        case ProcessingMode::Auto:
+        case ProcessingMode::Bwdif:
+            return prefix + "bwdif=mode=send_field:parity=" +
+                   parity_name(config.field_order) + ":deint=" + deint + sar_option;
+        case ProcessingMode::Yadif:
+            return prefix + "yadif=mode=send_field:parity=" +
+                   parity_name(config.field_order) + ":deint=" + deint + sar_option;
+        case ProcessingMode::Bob:
+            // Extract both fields (top field first as flagged, or as forced by
+            // setfield above) into half-height pictures, then reconstruct
+            // full height by nearest-neighbour line duplication of luma and
+            // chroma. Borders are duplicated, not extended.
+            return prefix + "separatefields,scale=w=iw:h=2*ih:flags=neighbor" +
+                   sar_option;
+        case ProcessingMode::Weave:
+            // Full-frame decoder output already carries both fields: Weave is
+            // a pass-through at the coded frame rate. The optional setfield
+            // prefix only corrects metadata.
+            if (!prefix.empty()) return prefix.substr(0, prefix.size() - 1);
+            return {};
+        default:
+            return {};
+    }
+}
+} // namespace
+
 OutputFrame& OutputFrame::operator=(OutputFrame&& other) noexcept {
     if (this != &other) {
         reset();
@@ -86,11 +154,28 @@ bool VideoProcessor::configure(const AVFrame* reference, AVRational input_time_b
                          ? reference->sample_aspect_ratio : AVRational{1, 1};
     AVRational fps = frame_rate.num > 0 && frame_rate.den > 0 ? frame_rate
                                                               : AVRational{0, 1};
-    info_.graph = config.graph.empty() ? "passthrough" : config.graph;
+    std::string graph_spec;
+    if (!config.graph.empty()) {
+        graph_spec = config.graph;
+        info_.graph = config.graph;
+    } else {
+        if (!processing_mode_supported(config.mode, reference->format)) {
+            error_ = std::string("configure: processing mode '") +
+                     processing_mode_name(config.mode) +
+                     "' does not support the decoded pixel format";
+            return false;
+        }
+        graph_spec = mode_graph(config, reference->format, sar);
+        info_.graph = processing_mode_name(config.mode);
+    }
     info_.input_time_base = input_time_base;
     info_.width = reference->width;
     info_.height = reference->height;
     info_.pixel_format = reference->format;
+    info_.sample_aspect_ratio = sar;
+    info_.color_range = reference->color_range;
+    info_.color_space = reference->colorspace;
+    info_.chroma_location = reference->chroma_location;
 
     graph_ = avfilter_graph_alloc();
     if (!graph_) {
@@ -124,7 +209,7 @@ bool VideoProcessor::configure(const AVFrame* reference, AVRational input_time_b
         return false;
     }
 
-    if (config.graph.empty()) {
+    if (graph_spec.empty()) {
         ret = avfilter_link(source_, 0, sink_, 0);
     } else {
         AVFilterInOut* inputs = avfilter_inout_alloc();
@@ -142,7 +227,7 @@ bool VideoProcessor::configure(const AVFrame* reference, AVRational input_time_b
         outputs->name = av_strdup("in");
         outputs->filter_ctx = source_;
         outputs->pad_idx = 0;
-        ret = avfilter_graph_parse_ptr(graph_, config.graph.c_str(),
+        ret = avfilter_graph_parse_ptr(graph_, graph_spec.c_str(),
                                        &inputs, &outputs, nullptr);
         avfilter_inout_free(&inputs);
         avfilter_inout_free(&outputs);
@@ -216,10 +301,16 @@ bool VideoProcessor::receive_outputs(uint64_t generation) {
         output.time_base = info_.output_time_base;
         output.duration = frame->duration > 0 ? frame->duration : 0;
         output.generation = generation;
-        output.sample_aspect_ratio = frame->sample_aspect_ratio;
-        output.color_space = frame->colorspace;
-        output.color_range = frame->color_range;
-        output.chroma_location = frame->chroma_location;
+        output.sample_aspect_ratio = frame->sample_aspect_ratio.num > 0
+                                         ? frame->sample_aspect_ratio
+                                         : info_.sample_aspect_ratio;
+        output.color_space = frame->colorspace != AVCOL_SPC_UNSPECIFIED
+                                 ? frame->colorspace : info_.color_space;
+        output.color_range = frame->color_range != AVCOL_RANGE_UNSPECIFIED
+                                 ? frame->color_range : info_.color_range;
+        output.chroma_location = frame->chroma_location != AVCHROMA_LOC_UNSPECIFIED
+                                     ? frame->chroma_location
+                                     : info_.chroma_location;
         output.interlaced = (frame->flags & AV_FRAME_FLAG_INTERLACED) != 0;
         output.top_field_first = (frame->flags & AV_FRAME_FLAG_TOP_FIELD_FIRST) != 0;
         outputs_.push_back(std::move(output));

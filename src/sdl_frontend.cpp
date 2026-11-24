@@ -437,6 +437,8 @@ void usage(const char* prog) {
         "          [--dump-ts <file>] [--screenshot <bmp>] [--shot-after <ms>]\n"
         "          [--menu] [--keys <Key,Key,...>] [--demo] [--ts-file <capture.ts>]\n"
         "          [--stats] [--decoder auto|cpu] [--vsync on|off|adaptive]\n"
+        "          [--deinterlace auto|bwdif|yadif|bob|weave|passthrough]\n"
+        "          [--field-order auto|tff|bff] [--deinterlace-force]\n"
         "          [--setup | --shortcuts | --about] [--help]\n"
         "  Enter menu; Esc back / quit; Left/Right or PgUp/PgDn channel;\n"
         "  Up/Down volume; +/- volume in menus; 0-9 direct channel; C list; G guide;\n"
@@ -505,6 +507,9 @@ struct Options {
     bool stats = false;        // print playback diagnostics every 2 s
     player::DecoderPreference decoder = player::DecoderPreference::Auto;
     std::string vsync = "on";  // on | off | adaptive
+    // CPU processing; Auto applies BWDIF to interlaced frames only.
+    video::ProcessingSettings processing{video::ProcessingMode::Auto,
+                                         video::FieldOrder::Auto, false};
     int change_after = 0;      // test hook: auto channel-change after N seconds
     int shot_after_ms = -1;
     int win_w = 1280, win_h = 720;
@@ -710,8 +715,9 @@ bool App::tune_to(int ch, uint32_t f, int program) {
         if (!ts_file_) std::fprintf(stderr, "[-] cannot open %s\n", opt_.ts_file.c_str());
         tuning_ = fmt("CH %d  READING STREAM", ch);
         present();
-        ok = ts_file_ && pl_.open(make_source(), ren_, program, [this] { return pump_tuning(); },
-                                   opt_.decoder);
+        ok = ts_file_ && pl_.open(make_source(), ren_, program,
+                                   [this] { return pump_tuning(); }, opt_.decoder,
+                                   opt_.processing);
     } else {
         std::printf("[*] tuning channel %d (%.3f MHz)...\n", ch, f / 1e6);
         hibiki::AtscStatus st;
@@ -727,8 +733,9 @@ bool App::tune_to(int ch, uint32_t f, int program) {
             std::printf("[+] locked (SNR %.1f dB)\n", st.snr_db_tenths / 10.0);
             tuning_ = fmt("CH %d  READING STREAM", ch);
             present();
-            ok = pl_.open(make_source(), ren_, program, [this] { return pump_tuning(); },
-                          opt_.decoder);
+            ok = pl_.open(make_source(), ren_, program,
+                          [this] { return pump_tuning(); }, opt_.decoder,
+                          opt_.processing);
         } else {
             std::fprintf(stderr, "[-] channel %d did not lock\n", ch);
         }
@@ -2299,6 +2306,32 @@ int main(int argc, char** argv) {
                 return 2;
             }
         }
+        else if (a == "--deinterlace" && (v = next())) {
+            std::string s = upper(v);
+            if (s == "PASSTHROUGH" || s == "OFF")
+                o.processing.mode = video::ProcessingMode::PassThrough;
+            else if (s == "AUTO") o.processing.mode = video::ProcessingMode::Auto;
+            else if (s == "BWDIF") o.processing.mode = video::ProcessingMode::Bwdif;
+            else if (s == "YADIF") o.processing.mode = video::ProcessingMode::Yadif;
+            else if (s == "BOB") o.processing.mode = video::ProcessingMode::Bob;
+            else if (s == "WEAVE") o.processing.mode = video::ProcessingMode::Weave;
+            else {
+                std::fprintf(stderr, "unsupported deinterlace mode '%s' "
+                                     "(auto|bwdif|yadif|bob|weave|passthrough)\n", v);
+                return 2;
+            }
+        }
+        else if (a == "--field-order" && (v = next())) {
+            std::string s = upper(v);
+            if (s == "AUTO") o.processing.field_order = video::FieldOrder::Auto;
+            else if (s == "TFF") o.processing.field_order = video::FieldOrder::TopFirst;
+            else if (s == "BFF") o.processing.field_order = video::FieldOrder::BottomFirst;
+            else {
+                std::fprintf(stderr, "unsupported field order '%s' (auto|tff|bff)\n", v);
+                return 2;
+            }
+        }
+        else if (a == "--deinterlace-force") o.processing.force = true;
         else if (a == "--vsync" && (v = next())) {
             std::string s = upper(v);
             if (s == "ON" || s == "OFF" || s == "ADAPTIVE")

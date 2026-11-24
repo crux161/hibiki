@@ -108,7 +108,8 @@ public:
     // Probe the stream (blocking, on the caller's thread) and start decoding
     // `program_id` (-1 = pick the main service). Returns false on failure.
     bool open(ReadFn read, SDL_Renderer* ren, int program_id = -1, PumpFn pump = {},
-              DecoderPreference decoder = DecoderPreference::Auto);
+              DecoderPreference decoder = DecoderPreference::Auto,
+              const video::ProcessingSettings& processing = {});
     void close();
     bool is_open() const { return fmt_ != nullptr; }
 
@@ -116,8 +117,11 @@ public:
     bool select_program(int program_id);
     bool select_audio(int stream_index);
 
-    // Configure the processing graph ("" = pass-through). Applied by resetting
-    // the worker's decoder and temporal history at the next frame.
+    // Configure the processing mode (default pass-through). Applied by
+    // resetting the worker's decoder and temporal history at the next frame.
+    void set_processing(const video::ProcessingSettings& settings);
+    // Configure an explicit libavfilter graph ("" clears it); overrides the
+    // mode while set. Used by tests and future diagnostics.
     void set_processing_graph(std::string graph);
 
     // Call every main-loop iteration. Returns true when a new frame was put
@@ -222,7 +226,8 @@ private:
     uint64_t generation_ = 0;
     bool reset_requested_ = false;
     bool worker_drained_ = false;
-    std::string processing_graph_;       // "" = pass-through
+    std::string processing_graph_;       // explicit graph; overrides the mode
+    video::ProcessingSettings processing_;
     std::atomic<uint64_t> decoded_total_{0};
     std::atomic<uint64_t> processed_total_{0};
     std::atomic<double> decode_ms_{0};

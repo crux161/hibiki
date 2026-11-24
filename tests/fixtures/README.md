@@ -91,19 +91,31 @@ python3 tests/fixtures/replay_check.py \
 
 The script runs the real front-end headless (`SDL_VIDEODRIVER=dummy`,
 `SDL_AUDIODRIVER=dummy`) with `--ts-file --stats`, parses the `[+] video:`,
-`[+] presentation:` and `[stats]` lines, and verifies the reported codec,
-declared/observed field order, requested-vs-active decoder and renderer,
-VSync result, decoded/output rates, processed-frame and packet queue
-durations, decode/filter/upload time, drops, A/V offset and presentation gaps.
-The M1 processor is pass-through, so `processing=passthrough` is expected. It also forces `--decoder cpu` and `--vsync off` once to
-prove the requested values are reported separately, checks that the 0.5 s
-fixture loops, and that `resolution_change` reports a size change.
+`[+] presentation:`, `[*] processing:` and `[stats]` lines, and verifies the
+reported codec, declared/observed field order, requested-vs-active decoder and
+renderer, VSync result, processing mode and sink time base, decoded/output
+rates, processed-frame and packet queue durations, decode/filter/upload time,
+drops, A/V offset and presentation gaps. It also forces `--decoder cpu` and
+`--vsync off` once to prove the requested values are reported separately,
+checks that the 0.5 s fixture loops, and that `resolution_change` reports a
+size change.
 
-Finally it captures screenshots of the 1080i TFF, 480i BFF and progressive
-fixtures and measures the moving bar on even vs odd raster rows:
+The M2 mode matrix then replays the following through the same SDL software
+renderer, capturing a screenshot in each run:
+
+| Fixture | Modes | Expected output cadence |
+| --- | --- | --- |
+| `interlaced_1080i5994_tff` | Auto, BWDIF, YADIF, Bob | 59.94 frames/s (one per field) |
+| `interlaced_1080i5994_tff` | Weave, pass-through | 29.97 frames/s (paired fields) |
+| `interlaced_480i5994_bff` | BWDIF / Weave | 59.94 / 29.97 frames/s |
+| `progressive_720p5994` | Auto | 59.94 frames/s (timing preserved) |
+| `progressive_720p5994` | BWDIF with `--deinterlace-force` | field-rate processing |
+
+Screenshots measure the moving bar on even vs odd raster rows:
 
 * **combing** is parity-structured: even and odd rows show the bar one field
-  apart (+4 px for 1080i TFF, -2 px for 480i BFF, 0 for progressive),
+  apart (+4 px for 1080i TFF, -2 px for 480i BFF, 0 for progressive). Weave
+  and pass-through keep it; Auto/BWDIF/YADIF/Bob remove it.
 * **tearing** would instead split the picture into horizontal blocks where
   *both* parities jump between two frames. The check asserts that no such
   within-field discontinuity exists in the captured frame.
@@ -117,13 +129,15 @@ hardware:
 1. Run on the reference display without `--no-hud`, e.g.
    `./hibiki-tv --ts-file build/test-fixtures/interlaced_1080i5994_tff.ts --stats`.
 2. Press `I` and confirm `REN ... VSYNC ON`; compare with `--vsync off`.
-3. Watch the sweeping bar at the display's native refresh rate. A parity
-   fringe that alternates line-by-line is combing (expected until M2); a
-   horizontal break where the bar jumps between two positions for a block of
-   scanlines is tearing. The progressive fixture must show neither in steady
-   playback.
-4. Repeat with the 480i BFF and mixed film/video fixtures, and check menus
-   stay responsive while the picture is moving.
+3. Watch the sweeping bar at the display's native refresh rate. With the
+   default `--deinterlace auto` interlaced fixtures show one picture per
+   field and no parity fringe on a correctly flagged stream; `--deinterlace
+   weave` (or `passthrough`) restores the paired-field combing. A horizontal
+   break where the bar jumps between two positions for a block of scanlines
+   is tearing. The progressive fixture must show neither in steady playback.
+4. Repeat with BWDIF, YADIF and Bob on the 1080i/480i fixtures, with the 480i
+   BFF and mixed film/video fixtures, and check menus stay responsive while
+   the picture is moving.
 
 Recorded baseline results and the named reference machines live in
 `docs/PLAYBACK_BASELINE.md`.

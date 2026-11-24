@@ -2,18 +2,20 @@
 """Replay the M0 fixtures through the SDL front-end and check diagnostics.
 
 Runs the real application headless (SDL dummy video/audio drivers) over each
-generated fixture, parses the `[+] video:`, `[+] presentation:` and `[stats]`
-diagnostics, and verifies:
+generated fixture, parses the `[+] video:`, `[+] presentation:`, `[*]
+processing:` and `[stats]` diagnostics, and verifies:
 
   * the active decoder/renderer and requested values are reported separately
   * input codec, size, declared field order and observed field order match the
     fixture manifest
-  * decoded/output rates, queue durations, drops, A/V offset and UI present
-    gaps stay within the M0 baseline bounds
+  * decoded/output rates, processed-frame counts, queue durations, drops, A/V
+    offset and UI present gaps stay within the baseline bounds
   * replay looping, timestamp gaps and resolution changes keep playing
-  * screenshots of the moving-bar fixtures show the expected field-parity
-    combing (4 px on 1080i TFF, -2 px on 480i BFF, 0 on progressive) and no
-    vertical tearing within a field
+  * the CPU processing mode matrix (M2): Auto/BWDIF/YADIF/Bob produce the
+    expected 59.94 output cadence from 29.97 interlaced input, Weave keeps the
+    coded rate and its paired-field combing, Auto preserves progressive timing,
+    and force-processing doubles a progressive stream. Screenshots confirm the
+    combing/parity structure per mode and that deinterlaced output has none.
 
 The baseline JSON/Markdown outputs are records for docs/PLAYBACK_BASELINE.md;
 they are not compared between machines.
@@ -27,6 +29,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import statistics
 import struct
 import subprocess
@@ -47,12 +50,35 @@ QUICK_FIXTURES = [
     "anamorphic_480p5994",
     "bars_full_720p_h264",
 ]
-COMBING_CASES = {
-    # fixture: (window width, window height, band row range, expected odd-even px)
-    "interlaced_1080i5994_tff": (1920, 1080, (324, 756), 4.0),
-    "interlaced_480i5994_bff": (720, 480, (144, 336), -2.0),
-    "progressive_720p5994": (1280, 720, (216, 504), 0.0),
-}
+
+# Processing-mode matrix (M2): each case runs through the real SDL software
+# renderer and checks cadence plus the screenshot's field structure.
+MODE_CASES = [
+    {"fixture": "interlaced_1080i5994_tff", "args": ["--deinterlace", "auto"],
+     "mode": "auto", "window": (1920, 1080), "band": (324, 756), "parity": 0.0},
+    {"fixture": "interlaced_1080i5994_tff", "args": ["--deinterlace", "bwdif"],
+     "mode": "bwdif", "window": (1920, 1080), "band": (324, 756), "parity": 0.0},
+    {"fixture": "interlaced_1080i5994_tff", "args": ["--deinterlace", "yadif"],
+     "mode": "yadif", "window": (1920, 1080), "band": (324, 756), "parity": 0.0},
+    {"fixture": "interlaced_1080i5994_tff", "args": ["--deinterlace", "bob"],
+     "mode": "bob", "window": (1920, 1080), "band": (324, 756), "parity": 0.0},
+    {"fixture": "interlaced_1080i5994_tff", "args": ["--deinterlace", "weave"],
+     "mode": "weave", "window": (1920, 1080), "band": (324, 756), "parity": 4.0},
+    {"fixture": "interlaced_1080i5994_tff",
+     "args": ["--deinterlace", "passthrough"],
+     "mode": "passthrough", "window": (1920, 1080), "band": (324, 756),
+     "parity": 4.0},
+    {"fixture": "interlaced_480i5994_bff", "args": ["--deinterlace", "bwdif"],
+     "mode": "bwdif", "window": (720, 480), "band": (144, 336), "parity": 0.0},
+    {"fixture": "interlaced_480i5994_bff", "args": ["--deinterlace", "weave"],
+     "mode": "weave", "window": (720, 480), "band": (144, 336), "parity": -2.0},
+    {"fixture": "progressive_720p5994", "args": ["--deinterlace", "auto"],
+     "mode": "auto", "window": (1280, 720), "band": (216, 504), "parity": 0.0},
+    {"fixture": "progressive_720p5994",
+     "args": ["--deinterlace", "bwdif", "--deinterlace-force"],
+     "mode": "bwdif", "force": True, "window": (1280, 720),
+     "band": (216, 504), "parity": 0.0},
+]
 
 
 def run_app(app, fixture, extra_args=(), run_ms=4600, width=1280, height=720):
@@ -87,7 +113,8 @@ def parse_kv(line, prefix):
 
 def parse_run(run):
     parsed = {"videos": [], "stats": [], "presentation": None,
-              "media_lines": 0, "size_change_lines": 0}
+              "media_lines": 0, "size_change_lines": 0,
+              "processing_lines": []}
     for line in run["stdout"].splitlines():
         if line.startswith("[+] video: "):
             parsed["videos"].append(parse_kv(line, "[+] video: "))
@@ -95,6 +122,8 @@ def parse_run(run):
             parsed["presentation"] = parse_kv(line, "[+] presentation: ")
         elif line.startswith("[stats] "):
             parsed["stats"].append(parse_kv(line, "[stats] "))
+        elif line.startswith("[*] processing: "):
+            parsed["processing_lines"].append(line)
         elif line.startswith("[+] media: "):
             parsed["media_lines"] += 1
         elif line.startswith("[*] video size changed:"):
@@ -109,7 +138,39 @@ def number(stats, key, default=0.0):
         return default
 
 
-def check_fixture(fixture, parsed):
+SUPPORTED_PIX_FMTS = {"yuv420p", "yuv422p", "nv12"}
+
+
+def effective_mode(fixture, mode):
+    """The mode the worker can actually run for this fixture's pixel format."""
+    if mode in ("auto", "bwdif", "yadif", "bob") and \
+            fixture["video"]["pix_fmt"] not in SUPPORTED_PIX_FMTS:
+        return "passthrough"
+    return mode
+
+
+def output_multiplier(mode, fixture, force=False):
+    """Expected output frames per decoded frame for a processing mode."""
+    field = fixture["video"]["field_order"]
+    if mode == "bob":
+        return 2
+    if mode in ("auto", "bwdif", "yadif"):
+        if force or field in ("tt", "bb"):
+            return 2
+    return 1
+
+
+def processing_time_base(parsed):
+    if not parsed["processing_lines"]:
+        return None
+    match = re.search(r"sink time base (\d+)/(\d+)",
+                      parsed["processing_lines"][-1])
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def check_fixture(fixture, parsed, mode="auto", force=False):
     errors = []
     name = fixture["name"]
     video = fixture["video"]
@@ -135,8 +196,17 @@ def check_fixture(fixture, parsed):
                       f"{video['color_space']}")
     if reported.get("decoder") != "auto>ffmpeg-cpu":
         errors.append(f"{name}: decoder {reported.get('decoder')} != auto>ffmpeg-cpu")
-    if reported.get("processing") != "passthrough":
-        errors.append(f"{name}: processing {reported.get('processing')} != passthrough")
+    if reported.get("processing") != mode:
+        errors.append(f"{name}: requested processing {reported.get('processing')} "
+                      f"!= {mode}")
+    active_mode = effective_mode(fixture, mode)
+    if not parsed["processing_lines"]:
+        errors.append(f"{name}: worker never reported its processing graph")
+    elif f"processing: {active_mode}" not in parsed["processing_lines"][-1]:
+        errors.append(f"{name}: worker processing line does not report "
+                      f"{active_mode}: {parsed['processing_lines'][-1]}")
+    if processing_time_base(parsed) is None:
+        errors.append(f"{name}: sink time base not reported")
 
     presentation = parsed["presentation"] or {}
     if not presentation.get("renderer", "").startswith("auto>"):
@@ -155,22 +225,30 @@ def check_fixture(fixture, parsed):
     processed = [int(number(s, "processed")) for s in stats_list]
     if max(processed) <= 0:
         errors.append(f"{name}: processing boundary produced no output")
+    multiplier = output_multiplier(active_mode, fixture, force)
+    if multiplier == 2:
+        if not any(int(number(s, "processed")) > int(number(s, "decoded")) + 5
+                   for s in stats_list):
+            errors.append(f"{name}: field mode did not emit more outputs than "
+                          "decoded frames")
 
     # `--ts-file` loops the capture, which reopens the stream and restarts the
     # per-open counters/rate windows; samples taken right after a loop mark can
     # legitimately read zero, so rates are checked on the non-zero samples.
     coded_fps = fixture["video"]["avg_frame_rate"]
     num, _, den = coded_fps.partition("/")
-    expected_fps = float(num) / float(den)
+    coded_rate = float(num) / float(den)
+    target_rate = coded_rate * multiplier
     out_fps = [number(s, "out_fps") for s in stats_list if number(s, "out_fps") > 0]
     dec_fps = [number(s, "dec_fps") for s in stats_list if number(s, "dec_fps") > 0]
-    loop_seconds = len(fixture["video"]["pts_ticks"]) / expected_fps
+    loop_seconds = len(fixture["video"]["pts_ticks"]) / coded_rate
     if not out_fps:
         if loop_seconds >= 0.8:
             errors.append(f"{name}: no output-rate sample survived a loop reset")
-    elif not (0.4 * expected_fps <= statistics.median(out_fps) <= 1.4 * expected_fps):
-        errors.append(f"{name}: output rate {out_fps} fps away from {expected_fps:.2f}")
-    if dec_fps and not (0.4 * expected_fps <= statistics.median(dec_fps)):
+    elif not (0.4 * target_rate <= statistics.median(out_fps) <= 1.4 * target_rate):
+        errors.append(f"{name}: output rate {out_fps} fps away from "
+                      f"{target_rate:.2f} ({active_mode})")
+    if dec_fps and not (0.4 * coded_rate <= statistics.median(dec_fps)):
         errors.append(f"{name}: decoded rate {dec_fps} fps too low")
 
     expected_field = fixture["video"]["field_order"]
@@ -179,8 +257,9 @@ def check_fixture(fixture, parsed):
             errors.append(f"{name}: observed field {sample.get('field')} != "
                           f"{expected_field}")
             break
-        if sample.get("proc") != "passthrough":
-            errors.append(f"{name}: processing {sample.get('proc')} != passthrough")
+        if sample.get("proc") != active_mode:
+            errors.append(f"{name}: active processing {sample.get('proc')} != "
+                          f"{active_mode}")
         if abs(number(sample, "av")) > 0.5:
             errors.append(f"{name}: A/V offset {sample.get('av')} exceeds 0.5 s")
             break
@@ -191,7 +270,12 @@ def check_fixture(fixture, parsed):
             errors.append(f"{name}: packet queue {sample.get('q_packets')} s exceeds 2.0 s")
             break
         dropped = number(sample, "dropped")
-        if dropped > max(5.0, 0.10 * number(sample, "shown")):
+        presented = number(sample, "shown") + dropped
+        # Field-rate modes double the presentation load; the dummy software
+        # backend is allowed to shed pictures there (the mode test targets
+        # cadence and field structure, not the M4 performance gate).
+        drop_fraction = 0.60 if multiplier == 2 else 0.12
+        if dropped > max(5.0, drop_fraction * presented):
             errors.append(f"{name}: dropped {dropped:g} of {sample.get('shown')} frames")
             break
         if number(sample, "present_gap_ms") > 500:
@@ -270,31 +354,50 @@ def analyze_combing(path, band):
     }
 
 
-def run_combing_check(app, fixture_dir, fixture_name, workdir):
-    width, height, band, expected = COMBING_CASES[fixture_name]
-    shot = os.path.join(workdir, fixture_name + ".bmp")
-    path = os.path.join(fixture_dir, fixture_name + ".ts")
-    run = run_app(app, path, extra_args=["--screenshot", shot, "--shot-after", "1800",
-                                         "--no-hud"],
-                  run_ms=3200, width=width, height=height)
-    if run.get("timeout") or not os.path.exists(shot):
-        return None, [f"{fixture_name}: combing screenshot not captured"]
-    try:
-        analysis = analyze_combing(shot, band)
-    except ValueError as exc:
-        return None, [f"{fixture_name}: {exc}"]
-    if analysis is None:
-        return None, [f"{fixture_name}: moving bar not found in screenshot"]
+def run_mode_case(app, fixture_dir, case, manifest, workdir):
+    fixture = manifest["fixtures_by_name"][case["fixture"]]
+    name = fixture["name"]
+    tag = case["mode"] + ("-force" if case.get("force") else "")
+    shot = os.path.join(workdir, f"{name}-{tag}.bmp")
+    path = os.path.join(fixture_dir, fixture["file"])
+    width, height = case["window"]
+    run = run_app(app, path,
+                  extra_args=list(case["args"]) +
+                             ["--screenshot", shot, "--shot-after", "1800", "--no-hud"],
+                  run_ms=4600, width=width, height=height)
     errors = []
-    offset = analysis["parity_offset_px"]
-    if abs(offset - expected) > 2:
-        errors.append(f"{fixture_name}: parity offset {offset:+.1f} px, "
-                      f"expected {expected:+.1f} px")
-    if analysis["tear_suspected"]:
-        errors.append(f"{fixture_name}: vertical tearing found inside one field")
-    analysis["expected_parity_offset_px"] = expected
-    analysis["combing"] = abs(offset) >= 2
-    return analysis, errors
+    if run.get("timeout"):
+        errors.append(f"{name}/{tag}: application did not quit")
+    parsed = parse_run(run)
+    errors += check_fixture(fixture, parsed, mode=case["mode"],
+                            force=case.get("force", False))
+    analysis = None
+    if not os.path.exists(shot):
+        errors.append(f"{name}/{tag}: screenshot not captured")
+    else:
+        try:
+            analysis = analyze_combing(shot, case["band"])
+        except ValueError as exc:
+            errors.append(f"{name}/{tag}: {exc}")
+        if analysis is None:
+            errors.append(f"{name}/{tag}: moving bar not found in screenshot")
+    if analysis:
+        offset = analysis["parity_offset_px"]
+        if abs(offset - case["parity"]) > 2:
+            errors.append(f"{name}/{tag}: parity offset {offset:+.1f} px, "
+                          f"expected {case['parity']:+.1f} px")
+        if analysis["tear_suspected"]:
+            errors.append(f"{name}/{tag}: vertical tearing inside one field")
+        analysis["expected_parity_offset_px"] = case["parity"]
+        analysis["combing"] = abs(offset) >= 2
+        out_rates = [number(s, "out_fps") for s in parsed["stats"]
+                     if number(s, "out_fps") > 0]
+        analysis["out_fps"] = round(statistics.median(out_rates), 2) if out_rates else 0.0
+        tb = processing_time_base(parsed)
+        analysis["sink_time_base"] = f"{tb[0]}/{tb[1]}" if tb else None
+        analysis["mode"] = case["mode"]
+        analysis["force"] = case.get("force", False)
+    return errors, analysis
 
 
 def machine_info():
@@ -319,13 +422,18 @@ def baseline_markdown(baseline):
                          dms=record["decode_ms"], pms=record["process_ms"],
                          ums=record["upload_ms"],
                          gap=record["max_present_gap_ms"]))
-    combing = baseline.get("combing", {})
-    if combing:
-        lines += ["", "| Fixture | parity offset (px) | expected (px) | tear |",
-                  "| --- | --- | --- | --- |"]
-        for name, record in combing.items():
-            lines.append("| {} | {:+.1f} | {:+.1f} | {} |".format(
-                name, record["parity_offset_px"], record["expected_parity_offset_px"],
+    modes = baseline.get("modes", {})
+    if modes:
+        lines += ["", "| Fixture | Mode | out fps | parity offset (px) | expected | "
+                      "sink time base | tear |",
+                  "| --- | --- | --- | --- | --- | --- | --- |"]
+        for key, record in modes.items():
+            lines.append("| {} | {}{} | {:.2f} | {:+.1f} | {:+.1f} | {} | {} |".format(
+                record["fixture"], record["mode"],
+                " (force)" if record.get("force") else "",
+                record["out_fps"], record["parity_offset_px"],
+                record["expected_parity_offset_px"],
+                record.get("sink_time_base") or "-",
                 "yes" if record["tear_suspected"] else "no"))
     return "\n".join(lines) + "\n"
 
@@ -355,6 +463,7 @@ def main():
     with open(manifest_path) as handle:
         manifest = json.load(handle)
     by_name = {fixture["name"]: fixture for fixture in manifest["fixtures"]}
+    manifest["fixtures_by_name"] = by_name
 
     wanted = QUICK_FIXTURES if options.quick else list(by_name)
     if options.only:
@@ -367,7 +476,7 @@ def main():
 
     errors = []
     baseline = {"machine": machine_info(), "app": os.path.basename(options.app),
-                "fixtures": {}, "combing": {}}
+                "fixtures": {}, "modes": {}}
     with tempfile.TemporaryDirectory() as workdir:
         for fixture in fixtures:
             path = os.path.join(options.dir, fixture["file"])
@@ -408,14 +517,16 @@ def main():
                              if parsed["presentation"] else None,
                 }
 
-        for name in COMBING_CASES:
-            if name not in wanted:
-                continue
-            analysis, combing_errors = run_combing_check(options.app, options.dir,
-                                                         name, workdir)
-            errors += combing_errors
-            if analysis:
-                baseline["combing"][name] = analysis
+        if not options.only:
+            for case in MODE_CASES:
+                case_errors, analysis = run_mode_case(options.app, options.dir,
+                                                      case, manifest, workdir)
+                errors += case_errors
+                if analysis:
+                    key = case["fixture"] + "/" + analysis["mode"] + \
+                          ("-force" if analysis["force"] else "")
+                    analysis["fixture"] = case["fixture"]
+                    baseline["modes"][key] = analysis
 
         # Requested decoder is reported separately from the active one.
         probe_path = os.path.join(options.dir, by_name["progressive_720p5994"]["file"])
@@ -444,7 +555,7 @@ def main():
         print(f"[replay] {len(errors)} error(s)", file=sys.stderr)
         return 1
     print(f"[replay] {len(baseline['fixtures'])} fixture(s) replayed with expected "
-          f"diagnostics ({len(baseline['combing'])} combing checks)")
+          f"diagnostics, {len(baseline['modes'])} processing-mode checks")
     return 0
 
 

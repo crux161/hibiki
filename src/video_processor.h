@@ -26,6 +26,26 @@ extern "C" {
 
 namespace video {
 
+// CPU processing modes (M2). Auto applies BWDIF only to frames flagged
+// interlaced; explicit BWDIF/YADIF honour flags unless force is set; Bob
+// always reconstructs each field; Weave keeps paired fields at the coded frame
+// rate (a pass-through for full-frame decoder output).
+enum class ProcessingMode { PassThrough, Auto, Bwdif, Yadif, Bob, Weave };
+enum class FieldOrder { Auto, TopFirst, BottomFirst };
+
+struct ProcessingSettings {
+    ProcessingMode mode = ProcessingMode::PassThrough;
+    FieldOrder field_order = FieldOrder::Auto;
+    bool force = false;   // deinterlace even frames not flagged interlaced
+};
+
+// Stable lowercase name for diagnostics/HUD ("passthrough", "auto", ...).
+const char* processing_mode_name(ProcessingMode mode);
+// Pixel-format negotiation: 8-bit planar 4:2:0/4:2:2 are supported directly,
+// NV12 is converted to yuv420p before filtering, Weave/pass-through accept
+// everything. Other formats must fall back to pass-through.
+bool processing_mode_supported(ProcessingMode mode, int pixel_format);
+
 // One processed picture, ready for the display queue. Owns its AVFrame.
 struct OutputFrame {
     AVFrame* frame = nullptr;
@@ -54,7 +74,10 @@ struct OutputFrame {
 };
 
 struct ProcessorConfig {
-    std::string graph;  // libavfilter chain; empty means pass-through
+    std::string graph;  // explicit libavfilter chain; overrides mode when set
+    ProcessingMode mode = ProcessingMode::PassThrough;
+    FieldOrder field_order = FieldOrder::Auto;
+    bool force = false;
 };
 
 struct ProcessorInfo {
@@ -65,6 +88,12 @@ struct ProcessorInfo {
     int width = 0;
     int height = 0;
     int pixel_format = -1;
+    // Metadata of the configured reference frame; outputs fall back to these
+    // when a filter does not propagate per-frame properties.
+    AVRational sample_aspect_ratio{0, 1};
+    AVColorRange color_range = AVCOL_RANGE_UNSPECIFIED;
+    AVColorSpace color_space = AVCOL_SPC_UNSPECIFIED;
+    AVChromaLocation chroma_location = AVCHROMA_LOC_UNSPECIFIED;
 };
 
 class VideoProcessor {
@@ -76,7 +105,8 @@ public:
 
     // Configure for a decoded reference frame. input_time_base is the time base
     // of frame PTS values passed to submit(); frame_rate is the stream's
-    // nominal rate (used by rate-changing filters). False on failure (error()).
+    // nominal rate (used by rate-changing filters). False on failure (error()),
+    // including an unsupported mode/pixel-format combination.
     bool configure(const AVFrame* reference, AVRational input_time_base,
                    AVRational frame_rate, const ProcessorConfig& config);
     // Drop the graph and every queued output. Safe to call repeatedly.

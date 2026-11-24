@@ -34,9 +34,18 @@ the last channel and sub-channel watched.
 `src/player.{h,cpp}`: a demux thread reads the TS (tuner ring or file) through
 libavformat into video and audio packet queues. A video worker thread decodes
 and runs each picture through the `VideoProcessor` processing boundary
-(`src/video_processor.{h,cpp}`, a libavfilter graph that is pass-through until
-the deinterlacing modes land), queueing timestamped outputs in a bounded
-processed-frame queue. The main thread keeps ~0.25 s of audio queued in SDL,
+(`src/video_processor.{h,cpp}`, a libavfilter graph), queueing timestamped
+outputs in a bounded processed-frame queue. The CPU modes are Auto (BWDIF on
+frames flagged interlaced, progressive frames untouched), BWDIF and YADIF
+(one output per field), Bob (each field becomes a full-height picture by
+line duplication), Weave (paired fields at the coded frame rate; a
+pass-through for full-frame decoder output) and pass-through for diagnostics.
+The default is Auto. Select them with
+`--deinterlace auto|bwdif|yadif|bob|weave|passthrough`;
+`--field-order auto|tff|bff` overrides bad field-order metadata and
+`--deinterlace-force` processes frames that are not flagged interlaced.
+8-bit planar 4:2:0/4:2:2 are filtered directly, NV12 is converted to 4:2:0
+first, and other formats fall back to pass-through with a warning. The main thread keeps ~0.25 s of audio queued in SDL,
 pops each due picture using its own sink time base, uploads textures and
 presents; SDL texture work, presentation and the audio service never leave the
 main thread, so menus stay responsive while video processing is busy.
@@ -131,7 +140,8 @@ against a synthetic PSIP stream; `--demo` feeds the same stream to the UI.
   [docs/PLAYBACK_BASELINE.md](docs/PLAYBACK_BASELINE.md). `ctest` also runs
   synthetic processor and player-worker tests (multiple outputs, changed time
   bases, unknown timestamps, EOF drain, cancellation and resets) without a
-  window.
+  window, plus the processing-mode matrix (cadence, field order, chroma,
+  boundaries and mode changes).
 
 **Firmware is not redistributable and is NOT in this repo.** Obtain the blobs
 separately (verify against the SHA-256 table below) and place them in `fw/`, or
