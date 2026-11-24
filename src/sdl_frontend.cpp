@@ -1947,7 +1947,7 @@ void App::draw_hud() {
                                        ps.output_fps),
                       W - mx, y - sh * 4, osd::kWhite, Align::Right, Style::Vhs, 200);
             osd_.text(Font::Small, fmt("PROC %s %.1f MS", upper(vi.processing).c_str(),
-                                       ps.decode_ms + ps.upload_ms),
+                                       ps.decode_ms + ps.process_ms + ps.upload_ms),
                       W - mx, y - sh * 5, osd::kWhite, Align::Right, Style::Vhs, 200);
             osd_.text(Font::Small, fmt("Q V %.2f P %.2f A %.2f S", ps.queue_video_s,
                                        ps.queue_packets_s, ps.audio_latency),
@@ -2183,7 +2183,8 @@ int App::run() {
         std::string field = vi.field_order_observed != "unknown"
                                 ? vi.field_order_observed : vi.field_order;
         std::printf("[stats] av=%+.3f audio=%.3f shown=%llu dropped=%llu resyncs=%llu "
-                    "decoded=%llu dec_fps=%.2f out_fps=%.2f dec_ms=%.2f up_ms=%.2f "
+                    "decoded=%llu processed=%llu dec_fps=%.2f out_fps=%.2f "
+                    "dec_ms=%.2f proc_ms=%.2f up_ms=%.2f "
                     "q_video=%.3f q_packets=%.3f size=%dx%d size_changes=%llu "
                     "field=%s proc=%s decoder=%s>%s renderer=auto>%s vsync=%s>%s "
                     "present_gap_ms=%llu psip_ch=%zu psip_ev=%zu\n",
@@ -2192,7 +2193,9 @@ int App::run() {
                     (unsigned long long)ps.frames_dropped,
                     (unsigned long long)ps.resyncs,
                     (unsigned long long)ps.frames_decoded,
-                    ps.decoded_fps, ps.output_fps, ps.decode_ms, ps.upload_ms,
+                    (unsigned long long)ps.frames_processed,
+                    ps.decoded_fps, ps.output_fps,
+                    ps.decode_ms, ps.process_ms, ps.upload_ms,
                     ps.queue_video_s, ps.queue_packets_s,
                     vi.active_width, vi.active_height,
                     (unsigned long long)vi.size_changes, field.c_str(),

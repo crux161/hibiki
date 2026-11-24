@@ -10,6 +10,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <future>
@@ -24,8 +25,12 @@ constexpr double kAudioTarget = 0.25;      // seconds of audio kept queued in SD
 constexpr double kOutputLatency = 0.015;   // rough device latency beyond SDL's queue
 constexpr double kMaxAudioAhead = 1.0;     // demux pauses when aq holds this much
 constexpr size_t kMaxVideoBytes = 24u << 20;
+constexpr size_t kMaxVideoPackets = 600;
+constexpr double kMaxVideoAhead = 2.0;     // media seconds of video packets queued
+constexpr size_t kMaxProcessedFrames = 8;  // decoded/filtered pictures awaiting display
+constexpr size_t kMaxProcessedBytes = 32u << 20;
+constexpr double kMaxProcessedAhead = 0.6; // media seconds of processed output queued
 constexpr size_t kMaxTapBytes = 4u << 20;
-constexpr size_t kFrameQueue = 6;
 constexpr double kDiscontinuity = 5.0;     // seconds
 
 uint64_t now_ns() { return SDL_GetTicksNS(); }
@@ -63,6 +68,13 @@ const char* color_range_name(AVColorRange range) {
 const char* color_space_name(AVColorSpace space) {
     const char* name = av_color_space_name(space);
     return name ? name : "unknown";
+}
+
+size_t frame_storage_bytes(const AVFrame* frame) {
+    int64_t size = av_image_get_buffer_size((AVPixelFormat)frame->format,
+                                            frame->width, frame->height, 1);
+    if (size > 0) return (size_t)size;
+    return (size_t)frame->width * (size_t)frame->height * 3 / 2;
 }
 } // namespace
 
@@ -119,8 +131,11 @@ bool Player::open(ReadFn read, SDL_Renderer* ren, int program_id, PumpFn pump,
 
 void Player::close() {
     stop_ = true;
+    worker_stop_ = true;
     cv_.notify_all();
+    out_cv_.notify_all();
     if (demux_.joinable()) demux_.join();
+    stop_worker();
     flush_queues();
     close_video();
     close_audio();
@@ -137,17 +152,34 @@ void Player::close() {
         std::lock_guard<std::mutex> lk(mu_);
         tap_.clear();
     }
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        outq_.clear();
+        outq_bytes_ = 0;
+        generation_ = 0;
+        reset_requested_ = false;
+        worker_drained_ = false;
+        processing_graph_.clear();
+    }
+    {
+        std::lock_guard<std::mutex> lk(info_mu_);
+        info_ = VideoInfo{};
+    }
+    tff_frames_ = bff_frames_ = progressive_frames_ = 0;
+    observed_logged_.clear();
+    rate_start_ns_ = 0;
+    rate_decoded_last_ = 0;
+    rate_output_ = 0;
+    decoded_total_ = 0;
+    processed_total_ = 0;
+    decode_ms_ = 0;
+    process_ms_ = 0;
     program_ = vstream_ = astream_ = -1;
     sel_v_ = sel_a_ = -1;
     width_ = height_ = 0;
     have_frame_ = false;
     eof_ = false;
     stats_ = Stats{};
-    info_ = VideoInfo{};
-    tff_frames_ = bff_frames_ = progressive_frames_ = 0;
-    observed_logged_.clear();
-    rate_start_ns_ = 0;
-    rate_decoded_ = rate_output_ = 0;
     reset_clock();
 }
 
@@ -158,7 +190,10 @@ void Player::demux_loop() {
         {
             std::unique_lock<std::mutex> lk(mu_);
             auto room = [&] {
-                return !paused_ && pq_duration(aq_) < kMaxAudioAhead && vq_.bytes < kMaxVideoBytes;
+                return !paused_ && pq_duration(aq_) < kMaxAudioAhead
+                    && vq_.bytes < kMaxVideoBytes
+                    && vq_.q.size() < kMaxVideoPackets
+                    && pq_duration(vq_) < kMaxVideoAhead;
             };
             cv_.wait_for(lk, std::chrono::milliseconds(20), [&] { return stop_ || room(); });
             if (stop_) break;
@@ -174,9 +209,12 @@ void Player::demux_loop() {
         if (!q) { av_packet_unref(pkt); continue; }
         AVPacket* p = av_packet_alloc();
         av_packet_move_ref(p, pkt);
-        std::lock_guard<std::mutex> lk(mu_);
-        q->bytes += (size_t)p->size;
-        q->q.push_back(p);
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            q->bytes += (size_t)p->size;
+            q->q.push_back(p);
+            cv_.notify_all();
+        }
     }
     av_packet_free(&pkt);
 }
@@ -193,15 +231,31 @@ double Player::pq_duration(const PacketQueue& q) const {
 }
 
 void Player::flush_queues() {
-    std::lock_guard<std::mutex> lk(mu_);
-    for (auto* q : {&vq_, &aq_}) {
-        for (AVPacket* p : q->q) av_packet_free(&p);
-        q->q.clear();
-        q->bytes = 0;
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        for (auto* q : {&vq_, &aq_}) {
+            for (AVPacket* p : q->q) av_packet_free(&p);
+            q->q.clear();
+            q->bytes = 0;
+        }
+        cv_.notify_all();
     }
-    for (AVFrame* f : vfq_) av_frame_free(&f);
-    vfq_.clear();
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        outq_.clear();
+        outq_bytes_ = 0;
+        out_cv_.notify_all();
+    }
+}
+
+AVPacket* Player::pop_packet(PacketQueue& q) {
+    std::lock_guard<std::mutex> lk(mu_);
+    if (q.q.empty()) return nullptr;
+    AVPacket* p = q.q.front();
+    q.q.pop_front();
+    q.bytes -= (size_t)p->size;
     cv_.notify_all();
+    return p;
 }
 
 // ---------------------------------------------------------------------------
@@ -222,32 +276,36 @@ bool Player::open_video(int idx) {
     if (!width_) { width_ = cp->width; height_ = cp->height; }
 
     // Static stream properties for the HUD and --stats.
-    info_ = VideoInfo{};
-    info_.codec = avcodec_get_name(cp->codec_id);
+    VideoInfo info;
+    info.codec = avcodec_get_name(cp->codec_id);
     const char* profile = avcodec_profile_name(cp->codec_id, cp->profile);
-    info_.profile = profile ? profile : "unknown";
+    info.profile = profile ? profile : "unknown";
     const char* pix_fmt = av_get_pix_fmt_name((AVPixelFormat)cp->format);
-    info_.pixel_format = pix_fmt ? pix_fmt : "unknown";
-    info_.width = cp->width;
-    info_.height = cp->height;
-    info_.active_width = cp->width;
-    info_.active_height = cp->height;
-    info_.sar = sar_.num && sar_.den ? ratio_str(sar_) : "1:1";
+    info.pixel_format = pix_fmt ? pix_fmt : "unknown";
+    info.width = cp->width;
+    info.height = cp->height;
+    info.active_width = cp->width;
+    info.active_height = cp->height;
+    info.sar = sar_.num && sar_.den ? ratio_str(sar_) : "1:1";
     AVRational fps = st->avg_frame_rate.num ? st->avg_frame_rate : st->r_frame_rate;
-    info_.frame_rate = rate_str(fps);
-    info_.field_order = field_order_name(cp->field_order);
-    info_.color_range = color_range_name(cp->color_range);
-    info_.color_space = color_space_name(cp->color_space);
-    info_.decoder_requested = decoder_pref_ == DecoderPreference::Cpu ? "cpu" : "auto";
-    info_.decoder_active = "ffmpeg-cpu";
-    info_.processing = "bypass";
+    info.frame_rate = rate_str(fps);
+    info.field_order = field_order_name(cp->field_order);
+    info.color_range = color_range_name(cp->color_range);
+    info.color_space = color_space_name(cp->color_space);
+    info.decoder_requested = decoder_pref_ == DecoderPreference::Cpu ? "cpu" : "auto";
+    info.decoder_active = "ffmpeg-cpu";
+    info.processing = "passthrough";
+    {
+        std::lock_guard<std::mutex> lk(info_mu_);
+        info_ = info;
+    }
     std::printf("[+] video: codec=%s profile=%s size=%dx%d pix_fmt=%s field=%s "
                 "range=%s space=%s sar=%s fps=%s decoder=%s>%s processing=%s\n",
-                info_.codec.c_str(), info_.profile.c_str(), info_.width, info_.height,
-                info_.pixel_format.c_str(), info_.field_order.c_str(),
-                info_.color_range.c_str(), info_.color_space.c_str(), info_.sar.c_str(),
-                info_.frame_rate.c_str(), info_.decoder_requested.c_str(),
-                info_.decoder_active.c_str(), info_.processing.c_str());
+                info.codec.c_str(), info.profile.c_str(), info.width, info.height,
+                info.pixel_format.c_str(), info.field_order.c_str(),
+                info.color_range.c_str(), info.color_space.c_str(), info.sar.c_str(),
+                info.frame_rate.c_str(), info.decoder_requested.c_str(),
+                info.decoder_active.c_str(), info.processing.c_str());
     return true;
 }
 
@@ -318,9 +376,60 @@ struct Pause {
 };
 } // namespace
 
+void Player::start_worker() {
+    if (worker_.joinable()) return;
+    worker_stop_ = false;
+    worker_ = std::thread([this] { video_worker(); });
+}
+
+void Player::stop_worker() {
+    if (!worker_.joinable()) return;
+    worker_stop_ = true;
+    cv_.notify_all();
+    out_cv_.notify_all();
+    worker_.join();
+    worker_stop_ = false;
+}
+
+void Player::bump_generation_locked() {
+    ++generation_;
+    outq_.clear();
+    outq_bytes_ = 0;
+    worker_drained_ = false;
+}
+
+void Player::request_video_reset(const char* reason) {
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        for (AVPacket* p : vq_.q) av_packet_free(&p);
+        vq_.q.clear();
+        vq_.bytes = 0;
+        cv_.notify_all();
+    }
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        reset_requested_ = true;
+        bump_generation_locked();
+    }
+    out_cv_.notify_all();
+    if (reason) std::printf("[*] video reset: %s\n", reason);
+}
+
+void Player::set_processing_graph(std::string graph) {
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        processing_graph_ = std::move(graph);
+        reset_requested_ = true;
+        bump_generation_locked();
+    }
+    cv_.notify_all();
+    out_cv_.notify_all();
+}
+
 bool Player::select_program(int program_id) {
     if (!fmt_) return false;
     Pause hold(paused_, cv_);
+    stop_worker();
     const AVProgram* prog = nullptr;
     if (program_id >= 0)
         for (unsigned i = 0; i < fmt_->nb_programs; ++i)
@@ -349,11 +458,26 @@ bool Player::select_program(int program_id) {
     if (aud.empty()) aud = streams_in(fmt_, nullptr, AVMEDIA_TYPE_AUDIO);
     if (!aud.empty()) open_audio(aud[0]);
     reset_clock();
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        ++generation_;
+        outq_.clear();
+        outq_bytes_ = 0;
+        reset_requested_ = false;
+        worker_drained_ = false;
+    }
+    {
+        std::lock_guard<std::mutex> lk(info_mu_);
+        tff_frames_ = bff_frames_ = progressive_frames_ = 0;
+        observed_logged_.clear();
+        info_.field_order_observed = "unknown";
+    }
     sel_v_ = vstream_;
     sel_a_ = astream_;
     std::printf("[+] media: program %d, %dx%d video%s\n", program_,
                 fmt_->streams[best]->codecpar->width, fmt_->streams[best]->codecpar->height,
                 adec_ ? " + audio" : "");
+    start_worker();
     return true;
 }
 
@@ -377,6 +501,225 @@ bool Player::select_audio(int idx) {
 void Player::set_gain(float g) {
     gain_ = g;
     if (audio_) SDL_SetAudioStreamGain(audio_, g);
+}
+
+// ---------------------------------------------------------------------------
+// Video worker: decode, run the processing boundary, queue bounded output.
+
+void Player::video_worker() {
+    video::VideoProcessor processor;
+    video::ProcessorConfig config;
+    AVFrame* decoded = av_frame_alloc();
+    if (!decoded) return;
+    AVPacket* pkt = nullptr;
+    bool configured = false;
+    bool configure_failed = false;   // retry only after a reset
+    int configured_format = -1, configured_width = 0, configured_height = 0;
+    bool decoder_eof = false, flushed = false;
+    uint64_t gen = 0;
+
+    auto output_room = [&](const video::OutputFrame& out) {
+        if (outq_.size() >= kMaxProcessedFrames) return false;
+        size_t bytes = frame_storage_bytes(out.frame);
+        if (outq_bytes_ + bytes > kMaxProcessedBytes) return false;
+        if (!outq_.empty()) {
+            double first = outq_.front().pts_seconds();
+            double last = out.pts_seconds();
+            if (first >= 0 && last >= 0 && last - first > kMaxProcessedAhead)
+                return false;
+        }
+        return true;
+    };
+    // Move every ready output into the bounded display queue, waiting for the
+    // main thread when full. Returns false if a reset/stop interrupted it.
+    auto move_outputs = [&]() -> bool {
+        video::OutputFrame out;
+        while (processor.take_output(out)) {
+            std::unique_lock<std::mutex> lk(out_mu_);
+            out_cv_.wait(lk, [&] {
+                return stop_ || worker_stop_ || reset_requested_ || generation_ != gen ||
+                       output_room(out);
+            });
+            if (stop_ || worker_stop_) return false;
+            if (reset_requested_ || generation_ != gen) return false;
+            outq_bytes_ += frame_storage_bytes(out.frame);
+            outq_.push_back(std::move(out));
+            ++processed_total_;
+            out_cv_.notify_all();
+        }
+        return true;
+    };
+    // Decode one frame into the processor. Returns false when a reset/stop
+    // interrupted output queueing; the main loop handles it next iteration.
+    auto handle_decoded = [&]() -> bool {
+        ++decoded_total_;
+        decoded->pts = decoded->best_effort_timestamp;   // may be AV_NOPTS_VALUE
+        note_frame_info(decoded);
+        if (configured && (decoded->width != configured_width ||
+                           decoded->height != configured_height ||
+                           decoded->format != configured_format)) {
+            {
+                std::lock_guard<std::mutex> lk(out_mu_);
+                bump_generation_locked();
+                gen = generation_;
+            }
+            std::printf("[*] video format changed: %dx%d fmt %d -> %dx%d fmt %d; "
+                        "resetting processing\n",
+                        configured_width, configured_height, configured_format,
+                        decoded->width, decoded->height, decoded->format);
+            processor.reset();
+            configured = false;
+            configure_failed = false;
+            flushed = false;
+        }
+        if (!configured && !configure_failed) {
+            AVRational vtb = fmt_->streams[vstream_]->time_base;
+            AVRational fps = fmt_->streams[vstream_]->avg_frame_rate;
+            if (processor.configure(decoded, vtb, fps, config)) {
+                configured = true;
+                configured_width = processor.info().width;
+                configured_height = processor.info().height;
+                configured_format = processor.info().pixel_format;
+                {
+                    std::lock_guard<std::mutex> lk(info_mu_);
+                    info_.processing = processor.info().graph;
+                }
+                std::printf("[*] processing: %s, sink time base %d/%d\n",
+                            processor.info().graph.c_str(),
+                            processor.info().output_time_base.num,
+                            processor.info().output_time_base.den);
+            } else {
+                configure_failed = true;
+                std::fprintf(stderr, "[-] processor configure failed: %s\n",
+                             processor.error().c_str());
+            }
+        }
+        if (configured) {
+            uint64_t start = SDL_GetTicksNS();
+            if (processor.submit(decoded, gen)) {
+                double ms = (SDL_GetTicksNS() - start) / 1e6;
+                double previous = process_ms_.load();
+                process_ms_.store(previous > 0 ? previous * 0.8 + ms * 0.2 : ms);
+            } else {
+                std::fprintf(stderr, "[-] processor submit failed: %s\n",
+                             processor.error().c_str());
+            }
+            bool moved = move_outputs();
+            av_frame_unref(decoded);
+            return moved;
+        }
+        av_frame_unref(decoded);
+        return true;
+    };
+
+    while (!stop_ && !worker_stop_) {
+        bool do_reset = false;
+        {
+            std::lock_guard<std::mutex> lk(out_mu_);
+            gen = generation_;
+            config.graph = processing_graph_;
+            if (reset_requested_) {
+                reset_requested_ = false;
+                do_reset = true;
+            }
+        }
+        if (do_reset) {
+            processor.reset();
+            avcodec_flush_buffers(vdec_);
+            configured = false;
+            configure_failed = false;
+            decoder_eof = flushed = false;
+            if (pkt) { av_packet_free(&pkt); pkt = nullptr; }
+            continue;
+        }
+
+        if (!pkt) pkt = pop_packet(vq_);
+        if (pkt) {
+            if (pkt->stream_index != vstream_) {
+                av_packet_free(&pkt);
+                pkt = nullptr;
+                continue;
+            }
+            uint64_t decode_ns = 0;
+            int decoded_now = 0;
+            uint64_t send_start = SDL_GetTicksNS();
+            int sent = avcodec_send_packet(vdec_, pkt);
+            decode_ns += SDL_GetTicksNS() - send_start;
+            av_packet_free(&pkt);
+            pkt = nullptr;
+            bool keep_going = true;
+            if (sent >= 0) {
+                for (;;) {
+                    uint64_t receive_start = SDL_GetTicksNS();
+                    int ret = avcodec_receive_frame(vdec_, decoded);
+                    decode_ns += SDL_GetTicksNS() - receive_start;
+                    if (ret < 0) break;
+                    ++decoded_now;
+                    if (!handle_decoded()) {
+                        keep_going = false;
+                        break;
+                    }
+                }
+            }
+            if (decoded_now > 0) {
+                double ms = decode_ns / 1e6 / decoded_now;
+                double previous = decode_ms_.load();
+                decode_ms_.store(previous > 0 ? previous * 0.8 + ms * 0.2 : ms);
+            }
+            if (!keep_going) continue;
+            continue;
+        }
+
+        if (eof_ && !decoder_eof) {
+            decoder_eof = true;
+            avcodec_send_packet(vdec_, nullptr);
+            uint64_t decode_ns = 0;
+            int decoded_now = 0;
+            for (;;) {
+                uint64_t receive_start = SDL_GetTicksNS();
+                int ret = avcodec_receive_frame(vdec_, decoded);
+                decode_ns += SDL_GetTicksNS() - receive_start;
+                if (ret < 0) break;
+                ++decoded_now;
+                if (!handle_decoded()) break;
+            }
+            if (decoded_now > 0) {
+                double ms = decode_ns / 1e6 / decoded_now;
+                double previous = decode_ms_.load();
+                decode_ms_.store(previous > 0 ? previous * 0.8 + ms * 0.2 : ms);
+            }
+            continue;
+        }
+
+        if (decoder_eof && !flushed) {
+            bool ok = true;
+            if (configured) {
+                if (!processor.flush(gen))
+                    std::fprintf(stderr, "[-] processor flush failed: %s\n",
+                                 processor.error().c_str());
+                ok = move_outputs();
+            }
+            if (!ok) continue;   // reset/stop; handled at the top of the loop
+            flushed = true;
+            {
+                std::lock_guard<std::mutex> lk(out_mu_);
+                if (generation_ == gen) worker_drained_ = true;
+            }
+            out_cv_.notify_all();
+            continue;
+        }
+
+        std::unique_lock<std::mutex> lk(mu_);
+        cv_.wait_for(lk, std::chrono::milliseconds(10), [&] {
+            return stop_ || worker_stop_ || eof_ || !vq_.q.empty();
+        });
+    }
+    processor.close();
+    av_frame_free(&decoded);
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        worker_drained_ = false;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -476,6 +819,7 @@ void Player::upload(AVFrame* f) {
 }
 
 void Player::note_frame_info(const AVFrame* f) {
+    std::lock_guard<std::mutex> lk(info_mu_);
     if (f->width && f->height &&
         (f->width != info_.active_width || f->height != info_.active_height)) {
         std::printf("[*] video size changed: %dx%d -> %dx%d\n",
@@ -503,117 +847,114 @@ void Player::note_frame_info(const AVFrame* f) {
 
 void Player::update_rates() {
     uint64_t now = SDL_GetTicksNS();
-    if (!rate_start_ns_) { rate_start_ns_ = now; return; }
+    if (!rate_start_ns_) {
+        rate_start_ns_ = now;
+        rate_decoded_last_ = decoded_total_.load();
+        return;
+    }
     double elapsed = (now - rate_start_ns_) / 1e9;
     if (elapsed < 0.5) return;
-    stats_.decoded_fps = rate_decoded_ / elapsed;
+    uint64_t decoded_now = decoded_total_.load();
+    stats_.decoded_fps = (decoded_now - rate_decoded_last_) / elapsed;
     stats_.output_fps = rate_output_ / elapsed;
-    rate_decoded_ = rate_output_ = 0;
+    rate_decoded_last_ = decoded_now;
+    rate_output_ = 0;
     rate_start_ns_ = now;
+}
+
+double Player::output_span_locked() const {
+    if (outq_.size() < 2) return 0;
+    double first = outq_.front().pts_seconds();
+    double last = outq_.back().pts_seconds();
+    if (first < 0 || last <= first) return 0;
+    return last - first;
 }
 
 bool Player::service() {
     if (!fmt_) return false;
     if (!tmp_) tmp_ = av_frame_alloc();
-    auto pop = [&](PacketQueue& q) -> AVPacket* {
-        std::lock_guard<std::mutex> lk(mu_);
-        if (q.q.empty()) return nullptr;
-        AVPacket* p = q.q.front();
-        q.q.pop_front();
-        q.bytes -= (size_t)p->size;
-        cv_.notify_all();
-        return p;
-    };
 
-    // 1. Audio: keep ~kAudioTarget seconds queued in SDL.
+    // 1. Audio: keep ~kAudioTarget seconds queued in SDL (main thread).
     if (adec_ && audio_) {
         while (audio_queued_s() < kAudioTarget) {
-            AVPacket* p = pop(aq_);
+            AVPacket* p = pop_packet(aq_);
             if (!p) break;
             if (p->stream_index == astream_) decode_audio_packet(p);
             av_packet_free(&p);
         }
     } else {
-        while (AVPacket* p = pop(aq_)) av_packet_free(&p);
+        while (AVPacket* p = pop_packet(aq_)) av_packet_free(&p);
     }
     stats_.audio_latency = audio_queued_s();
 
-    // 2. Video: decode ahead into a small frame queue.
-    const AVRational vtb = vstream_ >= 0 ? fmt_->streams[vstream_]->time_base : AVRational{1, 90000};
-    uint64_t decode_start_ns = SDL_GetTicksNS();
-    int decoded_now = 0;
-    while (vdec_ && vfq_.size() < kFrameQueue) {
-        AVPacket* p = pop(vq_);
-        if (!p) break;
-        if (p->stream_index == vstream_ && avcodec_send_packet(vdec_, p) >= 0) {
-            while (avcodec_receive_frame(vdec_, tmp_) == 0) {
-                AVFrame* f = av_frame_alloc();
-                av_frame_move_ref(f, tmp_);
-                note_frame_info(f);
-                vfq_.push_back(f);
-                ++stats_.frames_decoded;
-                ++rate_decoded_;
-                ++decoded_now;
-            }
-        }
-        av_packet_free(&p);
-    }
-    if (decoded_now > 0) {
-        double ms = (SDL_GetTicksNS() - decode_start_ns) / 1e6 / decoded_now;
-        stats_.decode_ms = stats_.decode_ms > 0
-                               ? stats_.decode_ms * 0.8 + ms * 0.2
-                               : ms;
-    }
-
-    // 3. Show the frame whose time has come.
-    auto pts_of = [&](const AVFrame* f) {
-        return f->best_effort_timestamp != AV_NOPTS_VALUE ? f->best_effort_timestamp * av_q2d(vtb) : -1.0;
-    };
+    // 2. Show the processed frame whose time has come, dropping late output
+    //    that the next picture already superseded.
+    double clock = master_clock();
     bool shown = false;
-    while (!vfq_.empty()) {
-        AVFrame* f = vfq_.front();
-        double pts = pts_of(f);
-        double clock = master_clock();
-        bool show = false;
-        if (pts < 0) {
-            show = true;                                   // untimed frame
-        } else if (clock < 0) {
-            if (!audio_) {                                 // no audio: start the wall clock here
-                wall_anchor_pts_ = pts;
-                wall_anchor_ns_ = now_ns();
-                show = true;
-            } else if (!have_frame_) {
-                show = true;                               // first picture while audio starts
-            } else {
+    bool discontinuity = false;
+    video::OutputFrame item;
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        while (!outq_.empty()) {
+            video::OutputFrame& front = outq_.front();
+            double pts = front.pts_seconds();
+            bool show = false;
+            if (pts < 0) {
+                show = true;                                   // unknown: show now
+            } else if (clock < 0) {
+                if (!audio_) {                                 // no audio: start the wall clock here
+                    wall_anchor_pts_ = pts;
+                    wall_anchor_ns_ = now_ns();
+                    show = true;
+                } else if (!have_frame_) {
+                    show = true;                               // first picture while audio starts
+                } else {
+                    break;
+                }
+            } else if (std::fabs(pts - clock) > kDiscontinuity) {
+                discontinuity = true;
                 break;
-            }
-        } else {
-            double diff = pts - clock;
-            if (std::fabs(diff) > kDiscontinuity) {        // timeline jump: resync
-                ++stats_.resyncs;
-                if (!audio_) { wall_anchor_pts_ = pts; wall_anchor_ns_ = now_ns(); }
-                show = true;
-            } else if (diff > 0.003) {
-                break;                                     // not due yet
-            } else if (vfq_.size() > 1 && pts_of(vfq_[1]) >= 0 && pts_of(vfq_[1]) <= clock) {
-                vfq_.pop_front();                          // late and superseded: drop
-                av_frame_free(&f);
-                ++stats_.frames_dropped;
-                continue;
+            } else if (pts - clock > 0.003) {
+                break;                                         // not due yet
             } else {
-                stats_.av_offset = diff;
+                bool superseded = false;
+                if (outq_.size() > 1) {
+                    double next = outq_[1].pts_seconds();
+                    superseded = next >= 0 && next <= clock;
+                }
+                if (superseded) {
+                    outq_bytes_ -= frame_storage_bytes(front.frame);
+                    outq_.pop_front();
+                    ++stats_.frames_dropped;
+                    out_cv_.notify_all();
+                    continue;
+                }
+                stats_.av_offset = pts - clock;
                 show = true;
             }
+            if (!show) break;
+            outq_bytes_ -= frame_storage_bytes(front.frame);
+            item = std::move(front);
+            outq_.pop_front();
+            out_cv_.notify_all();
+            shown = true;
+            break;
         }
-        if (!show) break;
-        vfq_.pop_front();
-        upload(f);
-        av_frame_free(&f);
+        stats_.queue_video_s = output_span_locked();
+    }
+    if (item.valid()) {
+        upload(item.frame);
+        item.reset();
         shown = true;
-        break;
+    }
+    if (discontinuity) {
+        ++stats_.resyncs;
+        request_video_reset("timestamp discontinuity");
+        if (!audio_) { wall_anchor_pts_ = -1; wall_anchor_ns_ = 0; }
+        shown = false;
     }
 
-    // 4. Safety valve: video far ahead with no audio to move the clock.
+    // 3. Safety valve: video far ahead with no audio to move the clock.
     bool stuck;
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -621,17 +962,15 @@ bool Player::service() {
     }
     if (stuck) {
         ++stats_.resyncs;
-        flush_queues();
+        request_video_reset("video stalled");
         reset_clock();
     }
 
-    // Diagnostics: queued media and rolling decode/output rates.
-    stats_.queue_video_s = 0;
-    if (vfq_.size() >= 2) {
-        double first = pts_of(vfq_.front());
-        double last = pts_of(vfq_.back());
-        if (first >= 0 && last > first) stats_.queue_video_s = last - first;
-    }
+    // Diagnostics snapshot (worker counters are atomics; queues are locked).
+    stats_.frames_decoded = decoded_total_.load();
+    stats_.frames_processed = processed_total_.load();
+    stats_.decode_ms = decode_ms_.load();
+    stats_.process_ms = process_ms_.load();
     {
         std::lock_guard<std::mutex> lk(mu_);
         stats_.queue_packets_s = std::max(pq_duration(vq_), pq_duration(aq_));
@@ -640,13 +979,28 @@ bool Player::service() {
     return shown;
 }
 
+bool Player::ended() const {
+    if (!eof_) return false;
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        if (!vq_.empty() || !aq_.empty()) return false;
+    }
+    std::lock_guard<std::mutex> lk(out_mu_);
+    return outq_.empty() && worker_drained_;
+}
+
 int Player::idle_ms() const {
-    if (vfq_.empty()) return 2;
-    const AVFrame* f = vfq_.front();
-    if (f->best_effort_timestamp == AV_NOPTS_VALUE || vstream_ < 0) return 0;
-    double clock = master_clock();
-    if (clock < 0) return 2;
-    double wait = f->best_effort_timestamp * av_q2d(fmt_->streams[vstream_]->time_base) - clock;
+    double wait = 0;
+    {
+        std::lock_guard<std::mutex> lk(out_mu_);
+        if (outq_.empty()) return 1;
+        const video::OutputFrame& front = outq_.front();
+        double pts = front.pts_seconds();
+        if (pts < 0) return 0;
+        double clock = master_clock();
+        if (clock < 0) return 1;
+        wait = pts - clock;
+    }
     return (int)std::clamp(wait * 1000.0 - 1.0, 0.0, 5.0);
 }
 
@@ -657,6 +1011,11 @@ double Player::display_aspect() const {
 }
 
 uint64_t Player::ms_since_data() const { return SDL_GetTicks() - last_data_ms_; }
+
+VideoInfo Player::info() const {
+    std::lock_guard<std::mutex> lk(info_mu_);
+    return info_;
+}
 
 void Player::take_ts(std::vector<uint8_t>& out) {
     std::lock_guard<std::mutex> lk(mu_);

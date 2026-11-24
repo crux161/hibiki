@@ -32,17 +32,23 @@ the last channel and sub-channel watched.
 ### Playback pipeline
 
 `src/player.{h,cpp}`: a demux thread reads the TS (tuner ring or file) through
-libavformat into video and audio packet queues; the UI thread decodes, keeps
-~0.25 s of audio queued in SDL, and shows each video frame when its PTS comes
-due on the audio clock (wall clock when there is no audio), dropping late
-frames and resynchronising on timestamp jumps. The UI never blocks on the
-signal, so a dropout freezes the picture with `NO SIGNAL` instead of hanging
-the menus. The signal information panel (`I`) and `--stats` report the measured
-A/V offset, audio buffer and dropped frames together with the input
+libavformat into video and audio packet queues. A video worker thread decodes
+and runs each picture through the `VideoProcessor` processing boundary
+(`src/video_processor.{h,cpp}`, a libavfilter graph that is pass-through until
+the deinterlacing modes land), queueing timestamped outputs in a bounded
+processed-frame queue. The main thread keeps ~0.25 s of audio queued in SDL,
+pops each due picture using its own sink time base, uploads textures and
+presents; SDL texture work, presentation and the audio service never leave the
+main thread, so menus stay responsive while video processing is busy.
+Timestamp jumps, format changes, sub-channel switches and processing-method
+changes bump the stream generation and reset the decoder and filter history.
+The signal information panel (`I`) and `--stats` report the measured A/V
+offset, audio buffer and dropped frames together with the input
 codec/profile/pixel format/field order, the requested and active decoder and
-renderer, the VSync request and result, decoded/output rates, queue durations,
-and decode/upload time. `--decoder auto|cpu` and `--vsync on|off|adaptive`
-select the requested paths; the active ones are always the ones actually used.
+renderer, the VSync request and result, decoded/output rates, processed-frame
+and packet queue durations, and decode/filter/upload time. `--decoder
+auto|cpu` and `--vsync on|off|adaptive` select the requested paths; the active
+ones are always the ones actually used.
 
 The on-screen display (`src/osd.{h,cpp}`) uses the bundled VCR OSD font
 (`res/font/`): a VHS-style playback HUD (channel, clock, volume, signal) and a
@@ -122,7 +128,10 @@ against a synthetic PSIP stream; `--demo` feeds the same stream to the UI.
   [tests/fixtures/README.md](tests/fixtures/README.md); `ctest` runs the suite
   when ffmpeg/ffprobe and Python are available. Recorded baseline numbers and
   the reference machines are in
-  [docs/PLAYBACK_BASELINE.md](docs/PLAYBACK_BASELINE.md).
+  [docs/PLAYBACK_BASELINE.md](docs/PLAYBACK_BASELINE.md). `ctest` also runs
+  synthetic processor and player-worker tests (multiple outputs, changed time
+  bases, unknown timestamps, EOF drain, cancellation and resets) without a
+  window.
 
 **Firmware is not redistributable and is NOT in this repo.** Obtain the blobs
 separately (verify against the SHA-256 table below) and place them in `fw/`, or

@@ -94,6 +94,13 @@ baseline throughput, drops, A/V offset, and UI response are recorded.
 
 ## M1 Introduce the processing boundary and output timeline
 
+> **Status 2026-11-24: implemented.** `src/video_processor.{h,cpp}` provides
+> the libavfilter boundary; video decode/filtering runs on a bounded worker
+> thread with generation-based resets. Synthetic tests cover pass-through,
+> multiple outputs, changed sink time bases, unknown timestamps, EOF drain,
+> cancellation and clean resets; the M1 pass-through baseline is recorded in
+> [PLAYBACK_BASELINE.md](PLAYBACK_BASELINE.md).
+
 Add a `VideoProcessor` between decoding and the display queue. Add `libavfilter`
 to both frontend and test dependencies in CMake. Keep processing independent of
 SDL and Apple frameworks so it can be tested without a window.

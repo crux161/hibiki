@@ -131,3 +131,59 @@ Known limitations recorded here for later milestones: the packet queue is
 bounded by bytes, not media duration (M1); 59.94 output on a 60 Hz display
 loses frames to late-frame dropping (M1); hardware decode/presentation are not
 present yet (M5/M6).
+
+## M1 pass-through baseline (worker + processing boundary)
+
+Recorded 2026-11-24 on the reference machine above after introducing
+`VideoProcessor` and moving video decode/filtering to a bounded worker thread.
+The processing graph is pass-through (`processing=passthrough`); decoding,
+filtering and texture upload are now measured separately (`dec_ms`,
+`proc_ms`, `up_ms`), and `processed` counts outputs leaving the boundary.
+
+Method: same headless replay run as M0 (`replay_check.py`, software renderer,
+4.6 s per fixture). The recorded JSON is
+`tests/fixtures/reference/baseline_m1_apple-m4pro-headless.json`.
+
+| Fixture | out fps | dec fps | drops | max A/V (s) | video queue (s) | packet queue (s) | decode ms | process ms | upload ms | present gap (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| progressive_720p5994 | 54.59 | 57.57 | 9 | 0.016 | 0.100 | 1.168 | 0.28 | 0.00 | 2.01 | 61 |
+| interlaced_1080i5994_tff | 28.76 | 28.76 | 0 | 0.006 | 0.234 | 1.024 | 0.66 | 0.01 | 3.72 | 99 |
+| interlaced_480i5994_bff | 28.84 | 28.84 | 0 | 0.015 | 0.200 | 1.024 | 0.17 | 0.00 | 0.84 | 97 |
+| telecine_3_2_1080i | 29.56 | 29.56 | 0 | 0.011 | 0.234 | 1.024 | 0.96 | 0.01 | 5.64 | 100 |
+| mixed_film_video_1080i | 29.48 | 29.48 | 0 | 0.011 | 0.234 | 1.024 | 1.00 | 0.01 | 5.98 | 99 |
+| flags_progressive_as_tff | 31.89 | 29.90 | 0 | 0.001 | 0.200 | 0.000 | 0.25 | 0.01 | 0.68 | 34 |
+| flags_interlaced_as_progressive | 31.90 | 29.90 | 0 | 0.002 | 0.200 | 0.000 | 0.24 | 0.01 | 0.66 | 35 |
+| anamorphic_480p5994 | 52.75 | 56.73 | 5 | 0.011 | 0.117 | 1.034 | 0.18 | 0.00 | 1.37 | 86 |
+| bars_limited_720p | 53.65 | 55.64 | 4 | 0.014 | 0.117 | 0.684 | 0.36 | 0.00 | 2.54 | 62 |
+| bars_full_720p_h264 | 53.56 | 57.52 | 4 | 0.010 | 0.117 | 0.684 | 1.11 | 0.00 | 4.55 | 60 |
+| timestamp_gap_720p | 50.87 | 53.86 | 6 | 0.011 | 0.117 | 1.185 | 0.41 | 0.00 | 3.32 | 63 |
+| resolution_change | 59.97 | 59.97 | 0 | 0.002 | 0.117 | 0.901 | 0.43 | 0.00 | 3.17 | 38 |
+| replay_short_720p | 0.00 | 0.00 | 1 | 0.013 | 0.117 | 0.200 | 0.33 | 0.00 | 2.56 | 78 |
+
+Field-parity results are unchanged from M0 (+4 px 1080i TFF, -2 px 480i BFF,
+0 px progressive, no within-field tearing).
+
+M1 exit criteria:
+
+* **Pass-through preserves playback.** All fixtures replay with the expected
+  rates, bounded queues and the same field-parity results as M0. Decode is
+  0.2–1.0 ms/picture and the pass-through boundary costs ~0.01 ms; 1080i
+  software texture upload remains the largest per-frame cost (3.7–6 ms).
+* **Synthetic tests** (`video_processor_tests`, `player_worker_tests`) cover
+  multiple outputs and a changed sink time base (`fps=60`: 60 inputs → 120
+  processed/presented pictures, sink time base 1/60), unknown timestamps
+  preserved through the boundary and presented immediately, EOF drain
+  (decoder then filter graph, `tpad` flush and real TS), cancellation
+  (`close()` while the worker is blocked on a full output queue completes
+  immediately) and clean resets (processor reset/reconfigure, a mid-stream
+  processing-method change, a 6 s timestamp jump, and the `resolution_change`
+  fixture's format change — each bumps the stream generation and resets
+  temporal history).
+* **Menus stay responsive.** Decoding and filtering run on the worker; the
+  headless replay run records present gaps of 34–100 ms while playing.
+
+Known follow-ups recorded for M2/M4: the 59.94 late-frame drop policy still
+loses ~5–10% of pictures (unchanged from M0, now applied to processed output
+after a generation check); packet queues are bounded by bytes, packet count
+and media duration, while the processed queue is bounded to 8 pictures /
+32 MiB / 0.6 s.

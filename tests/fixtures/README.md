@@ -93,8 +93,9 @@ The script runs the real front-end headless (`SDL_VIDEODRIVER=dummy`,
 `SDL_AUDIODRIVER=dummy`) with `--ts-file --stats`, parses the `[+] video:`,
 `[+] presentation:` and `[stats]` lines, and verifies the reported codec,
 declared/observed field order, requested-vs-active decoder and renderer,
-VSync result, decoded/output rates, drops, A/V offset, queue durations and
-presentation gaps. It also forces `--decoder cpu` and `--vsync off` once to
+VSync result, decoded/output rates, processed-frame and packet queue
+durations, decode/filter/upload time, drops, A/V offset and presentation gaps.
+The M1 processor is pass-through, so `processing=passthrough` is expected. It also forces `--decoder cpu` and `--vsync off` once to
 prove the requested values are reported separately, checks that the 0.5 s
 fixture loops, and that `resolution_change` reports a size change.
 

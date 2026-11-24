@@ -4,15 +4,23 @@
 //                                     |
 //                                     +--> raw TS copy for the PSIP decoder
 //
+//   video worker thread: decodes video packets, runs them through the
+//   VideoProcessor (libavfilter boundary) and queues timestamped outputs in a
+//   bounded processed-frame queue.
+//
 //   main thread: service() decodes audio into SDL (keeping ~0.25 s queued),
-//   decodes video into a small frame queue, and uploads each frame to the
-//   texture when its PTS comes due on the master clock.
+//   pops due processed video output from the queue, and uploads each frame to
+//   the texture when its PTS comes due on the master clock. SDL texture work,
+//   presentation and the audio service stay on the main thread; the menus stay
+//   responsive while the worker decodes or filters.
 //
 // The master clock is the audio clock (PTS at the end of the audio handed to
 // SDL minus what SDL still holds), so the picture follows the sound the
 // listener actually hears. Without audio it is a wall clock anchored on the
 // first video frame. A timestamp jump of more than a few seconds (splice,
-// wrap, replay loop) is treated as a discontinuity and resynchronises.
+// wrap, replay loop) is treated as a discontinuity: the video generation is
+// discarded, the worker resets the decoder and filter history, and playback
+// resynchronises.
 //
 // The demux thread never runs on the UI thread, so a stalled signal cannot
 // freeze the menus; it applies back-pressure through the queue limits, which
@@ -28,6 +36,8 @@ extern "C" {
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 }
+
+#include "video_processor.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -76,12 +86,16 @@ struct Stats {
     double av_offset = 0;        // last (video pts - clock) at display, seconds
     double audio_latency = 0;    // seconds of audio queued in SDL
     uint64_t frames_shown = 0, frames_dropped = 0, resyncs = 0;
-    // M0 playback diagnostics.
+    // Playback diagnostics. Decoded/processed/queue/time figures are snapshots
+    // of worker state taken on the main thread.
     uint64_t frames_decoded = 0;
-    double decoded_fps = 0, output_fps = 0;   // rolling ~1 s windows
-    double queue_video_s = 0;                 // decoded-frame queue span
+    uint64_t frames_processed = 0;
+    double decoded_fps = 0, output_fps = 0;   // rolling ~0.5 s windows
+    double queue_video_s = 0;                 // processed-output queue span
     double queue_packets_s = 0;               // demux packet queues span
-    double decode_ms = 0, upload_ms = 0;      // rolling per-frame averages
+    double decode_ms = 0;                     // per-frame decode average
+    double process_ms = 0;                    // per-frame filter average
+    double upload_ms = 0;                     // per-frame texture average
 };
 
 class Player {
@@ -102,6 +116,10 @@ public:
     bool select_program(int program_id);
     bool select_audio(int stream_index);
 
+    // Configure the processing graph ("" = pass-through). Applied by resetting
+    // the worker's decoder and temporal history at the next frame.
+    void set_processing_graph(std::string graph);
+
     // Call every main-loop iteration. Returns true when a new frame was put
     // into texture() (i.e. the screen should be redrawn).
     bool service();
@@ -120,11 +138,12 @@ public:
     int video_stream() const { return vstream_; }
     int audio_stream() const { return astream_; }
     bool has_frame() const { return have_frame_; }
-    bool ended() const { return eof_ && vq_.empty() && aq_.empty() && vfq_.empty(); }
+    bool ended() const;
     // ms since the source last delivered bytes (signal stall detection).
     uint64_t ms_since_data() const;
     const Stats& stats() const { return stats_; }
-    const VideoInfo& info() const { return info_; }
+    // Snapshot of the current stream/decoder/processing state (thread safe).
+    VideoInfo info() const;
 
     // Raw TS seen by the demuxer since the last call (for PSIP decoding).
     void take_ts(std::vector<uint8_t>& out);
@@ -148,8 +167,17 @@ private:
     void decode_audio_packet(AVPacket* pkt);
     void upload(AVFrame* f);
     double pq_duration(const PacketQueue& q) const;
+    AVPacket* pop_packet(PacketQueue& q);
     void note_frame_info(const AVFrame* f);
     void update_rates();
+
+    // video worker / processed-output queue
+    void video_worker();
+    void start_worker();
+    void stop_worker();
+    void request_video_reset(const char* reason);
+    void bump_generation_locked();
+    double output_span_locked() const;
 
     // source / demux
     ReadFn read_;
@@ -163,36 +191,54 @@ private:
     std::atomic<int> sel_v_{-1}, sel_a_{-1};   // streams the demux thread keeps
     std::atomic<bool> paused_{false};          // demux holds off while streams switch
     mutable std::mutex mu_;              // guards vq_, aq_, tap_
-    std::condition_variable cv_;         // demux waits for room
+    std::condition_variable cv_;         // packet queues / demux back-pressure
     PacketQueue vq_, aq_;
     std::vector<uint8_t> tap_;
 
-    // decode (main thread only)
+    // audio decode (main thread only)
     int program_ = -1, vstream_ = -1, astream_ = -1;
-    AVCodecContext* vdec_ = nullptr;
     AVCodecContext* adec_ = nullptr;
     AVFrame* tmp_ = nullptr;
-    SwsContext* sws_ = nullptr;
-    AVFrame* yuv_ = nullptr;
     SwrContext* swr_ = nullptr;
+    SwsContext* sws_ = nullptr;          // main thread: texture conversion
     std::vector<uint8_t> audio_out_;
     SDL_AudioStream* audio_ = nullptr;
     float gain_ = 1.0f;
-    std::deque<AVFrame*> vfq_;           // decoded, waiting for their PTS
+    AVFrame* yuv_ = nullptr;             // swscale target for texture upload
     SDL_Texture* vtex_ = nullptr;
     int width_ = 0, height_ = 0;
     AVRational sar_{0, 1};
     bool have_frame_ = false;
 
-    // diagnostics (main thread only)
+    // video decode + processing (worker thread; vdec_ touches worker only once
+    // the worker is running, which select_program/close guarantee via join)
+    std::thread worker_;
+    std::atomic<bool> worker_stop_{false};
+    AVCodecContext* vdec_ = nullptr;
+    mutable std::mutex out_mu_;          // guards outq_, generation and reset state
+    std::condition_variable out_cv_;
+    std::deque<video::OutputFrame> outq_;
+    size_t outq_bytes_ = 0;
+    uint64_t generation_ = 0;
+    bool reset_requested_ = false;
+    bool worker_drained_ = false;
+    std::string processing_graph_;       // "" = pass-through
+    std::atomic<uint64_t> decoded_total_{0};
+    std::atomic<uint64_t> processed_total_{0};
+    std::atomic<double> decode_ms_{0};
+    std::atomic<double> process_ms_{0};
+
+    // diagnostics (shared: worker updates fields under info_mu_)
     DecoderPreference decoder_pref_ = DecoderPreference::Auto;
+    mutable std::mutex info_mu_;
     VideoInfo info_;
     uint64_t tff_frames_ = 0, bff_frames_ = 0, progressive_frames_ = 0;
     std::string observed_logged_;
     uint64_t rate_start_ns_ = 0;
-    uint32_t rate_decoded_ = 0, rate_output_ = 0;
+    uint64_t rate_decoded_last_ = 0;
+    uint32_t rate_output_ = 0;
 
-    // clock
+    // clock (main thread only)
     double audio_end_pts_ = -1;          // PTS (s) at the end of audio given to SDL
     double wall_anchor_pts_ = -1;        // no-audio clock: pts at anchor time
     uint64_t wall_anchor_ns_ = 0;

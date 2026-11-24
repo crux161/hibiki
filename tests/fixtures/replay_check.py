@@ -135,8 +135,8 @@ def check_fixture(fixture, parsed):
                       f"{video['color_space']}")
     if reported.get("decoder") != "auto>ffmpeg-cpu":
         errors.append(f"{name}: decoder {reported.get('decoder')} != auto>ffmpeg-cpu")
-    if reported.get("processing") != "bypass":
-        errors.append(f"{name}: processing {reported.get('processing')} != bypass")
+    if reported.get("processing") != "passthrough":
+        errors.append(f"{name}: processing {reported.get('processing')} != passthrough")
 
     presentation = parsed["presentation"] or {}
     if not presentation.get("renderer", "").startswith("auto>"):
@@ -152,6 +152,9 @@ def check_fixture(fixture, parsed):
     shown = [int(number(s, "shown")) for s in stats_list]
     if max(shown) <= 0:
         errors.append(f"{name}: no frames were presented")
+    processed = [int(number(s, "processed")) for s in stats_list]
+    if max(processed) <= 0:
+        errors.append(f"{name}: processing boundary produced no output")
 
     # `--ts-file` loops the capture, which reopens the stream and restarts the
     # per-open counters/rate windows; samples taken right after a loop mark can
@@ -176,8 +179,8 @@ def check_fixture(fixture, parsed):
             errors.append(f"{name}: observed field {sample.get('field')} != "
                           f"{expected_field}")
             break
-        if sample.get("proc") != "bypass":
-            errors.append(f"{name}: processing {sample.get('proc')} != bypass")
+        if sample.get("proc") != "passthrough":
+            errors.append(f"{name}: processing {sample.get('proc')} != passthrough")
         if abs(number(sample, "av")) > 0.5:
             errors.append(f"{name}: A/V offset {sample.get('av')} exceeds 0.5 s")
             break
@@ -305,15 +308,16 @@ def machine_info():
 
 def baseline_markdown(baseline):
     lines = ["| Fixture | out fps | dec fps | drops | max A/V (s) | video queue (s) "
-             "| packet queue (s) | decode ms | upload ms | present gap (ms) |",
-             "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+             "| packet queue (s) | decode ms | process ms | upload ms | present gap (ms) |",
+             "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for name, record in baseline["fixtures"].items():
         lines.append("| {name} | {out:.2f} | {dec:.2f} | {drops:g} | {av:.3f} | "
-                     "{qv:.3f} | {qp:.3f} | {dms:.2f} | {ums:.2f} | {gap:g} |".format(
+                     "{qv:.3f} | {qp:.3f} | {dms:.2f} | {pms:.2f} | {ums:.2f} | {gap:g} |".format(
                          name=name, out=record["out_fps"], dec=record["dec_fps"],
                          drops=record["drops"], av=record["max_abs_av"],
                          qv=record["max_queue_video"], qp=record["max_queue_packets"],
-                         dms=record["decode_ms"], ums=record["upload_ms"],
+                         dms=record["decode_ms"], pms=record["process_ms"],
+                         ums=record["upload_ms"],
                          gap=record["max_present_gap_ms"]))
     combing = baseline.get("combing", {})
     if combing:
@@ -391,6 +395,8 @@ def main():
                                                    for s in samples), 3),
                     "decode_ms": round(statistics.median(number(s, "dec_ms")
                                                          for s in samples), 2),
+                    "process_ms": round(statistics.median(number(s, "proc_ms")
+                                                          for s in samples), 2),
                     "upload_ms": round(statistics.median(number(s, "up_ms")
                                                          for s in samples), 2),
                     "max_present_gap_ms": int(max(number(s, "present_gap_ms")

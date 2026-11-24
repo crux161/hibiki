@@ -83,7 +83,22 @@ endif()
 
 pkg_check_modules(SDL3 QUIET sdl3)
 pkg_check_modules(SDL3_TTF QUIET sdl3-ttf)
-pkg_check_modules(FFMPEG QUIET libavformat libavcodec libavutil libswscale libswresample)
+pkg_check_modules(FFMPEG QUIET libavformat libavcodec libavutil libswscale libswresample libavfilter)
+
+# ---- video processing boundary (libavfilter; no SDL or Apple dependencies) ----
+if(FFMPEG_FOUND)
+  add_library(hibiki_video STATIC src/video_processor.cpp)
+  target_include_directories(hibiki_video PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src ${FFMPEG_INCLUDE_DIRS})
+  target_link_directories(hibiki_video PUBLIC ${FFMPEG_LIBRARY_DIRS})
+  target_link_libraries(hibiki_video PUBLIC ${FFMPEG_LIBRARIES})
+  target_compile_options(hibiki_video PRIVATE -Wall -Wextra -Wno-unused-parameter)
+  if(BUILD_TESTING)
+    add_executable(video_processor_tests tests/video_processor_tests.cpp)
+    target_link_libraries(video_processor_tests PRIVATE hibiki_video)
+    add_test(NAME video_processor COMMAND video_processor_tests)
+  endif()
+endif()
 
 if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
   # macOS .app bundle (Hibiki.app) with the mangosteen icon.
@@ -123,7 +138,7 @@ if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
   target_link_directories(hibiki_sdl PRIVATE
     ${SDL3_LIBRARY_DIRS} ${SDL3_TTF_LIBRARY_DIRS} ${FFMPEG_LIBRARY_DIRS})
   target_link_libraries(hibiki_sdl PRIVATE
-    hibiki_core hibiki_psip ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
+    hibiki_core hibiki_psip hibiki_video ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
   target_compile_definitions(hibiki_sdl PRIVATE HIBIKI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_custom_command(TARGET hibiki_sdl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E create_symlink
@@ -136,6 +151,17 @@ if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
     target_link_libraries(hibiki_firmware_tests PRIVATE ${FFMPEG_LIBRARIES})
     add_test(NAME firmware_validation COMMAND hibiki_firmware_tests)
 
+    add_executable(player_worker_tests tests/player_worker_tests.cpp src/player.cpp)
+    target_include_directories(player_worker_tests PRIVATE
+      ${SDL3_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIRS})
+    target_link_directories(player_worker_tests PRIVATE
+      ${SDL3_LIBRARY_DIRS} ${FFMPEG_LIBRARY_DIRS})
+    target_link_libraries(player_worker_tests PRIVATE
+      hibiki_video ${SDL3_LIBRARIES} ${FFMPEG_LIBRARIES})
+    add_test(NAME player_worker COMMAND player_worker_tests)
+    set_tests_properties(player_worker PROPERTIES TIMEOUT 40
+      ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(hibiki_frontend_tests tests/frontend_tests.cpp src/osd.cpp src/player.cpp)
     target_compile_definitions(hibiki_frontend_tests PRIVATE HIBIKI_VERSION="${PROJECT_VERSION}")
     target_include_directories(hibiki_frontend_tests PRIVATE
@@ -143,7 +169,7 @@ if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
     target_link_directories(hibiki_frontend_tests PRIVATE
       ${SDL3_LIBRARY_DIRS} ${SDL3_TTF_LIBRARY_DIRS} ${FFMPEG_LIBRARY_DIRS})
     target_link_libraries(hibiki_frontend_tests PRIVATE
-      hibiki_core hibiki_psip ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
+      hibiki_core hibiki_psip hibiki_video ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
     if(APPLE)
       target_sources(hibiki_frontend_tests PRIVATE src/macos_menu.mm)
       target_link_libraries(hibiki_frontend_tests PRIVATE "-framework Cocoa")
