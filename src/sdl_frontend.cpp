@@ -17,6 +17,7 @@
 
 #include "hibiki/tuner.h"
 #include "osd.h"
+#include "psip.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
@@ -42,6 +43,7 @@ extern "C" {
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <map>
 #include <set>
 #include <sstream>
 #include <string>
@@ -63,6 +65,55 @@ std::string upper(std::string s) {
     return s;
 }
 
+// Broadcast text -> what the VCR OSD font can draw: uppercase ASCII, with
+// Latin-1 accents folded to their base letter and anything else as '?'.
+std::string vcr_text(const std::string& in, size_t max_len = std::string::npos) {
+    static const char* kFold =  // U+00C0..U+00FF
+        "AAAAAAACEEEEIIII" "DNOOOOOxOUUUUYTS" "AAAAAAACEEEEIIII" "DNOOOOO/OUUUUYTY";
+    std::string out;
+    for (size_t i = 0; i < in.size();) {
+        unsigned char c = (unsigned char)in[i];
+        uint32_t cp; int len;
+        if (c < 0x80) { cp = c; len = 1; }
+        else if ((c & 0xE0) == 0xC0 && i + 1 < in.size()) { cp = ((c & 0x1F) << 6) | (in[i + 1] & 0x3F); len = 2; }
+        else if ((c & 0xF0) == 0xE0 && i + 2 < in.size()) {
+            cp = ((c & 0x0F) << 12) | ((in[i + 1] & 0x3F) << 6) | (in[i + 2] & 0x3F); len = 3;
+        } else { cp = '?'; len = 1; }
+        i += (size_t)len;
+        char o;
+        if (cp >= 0x20 && cp < 0x7F) o = (char)std::toupper((int)cp);
+        else if (cp >= 0xC0 && cp <= 0xFF) o = kFold[cp - 0xC0];
+        else if (cp == 0x2018 || cp == 0x2019) o = '\'';
+        else if (cp == 0x201C || cp == 0x201D) o = '"';
+        else if (cp == 0x2013 || cp == 0x2014) o = '-';
+        else if (cp == '\t' || cp == '\n' || cp == '\r' || cp == 0xA0) o = ' ';
+        else if (cp < 0x20) continue;
+        else o = '?';
+        out += o;
+    }
+    if (out.size() > max_len) out.resize(max_len);
+    return out;
+}
+
+// Word-wrap to `width` columns.
+std::vector<std::string> wrap(const std::string& text, size_t width) {
+    std::vector<std::string> lines;
+    std::string line, word;
+    std::stringstream ss(text);
+    while (ss >> word) {
+        while (word.size() > width) {   // hard-split very long words
+            if (!line.empty()) { lines.push_back(line); line.clear(); }
+            lines.push_back(word.substr(0, width));
+            word = word.substr(width);
+        }
+        if (line.empty()) line = word;
+        else if (line.size() + 1 + word.size() <= width) line += " " + word;
+        else { lines.push_back(line); line = word; }
+    }
+    if (!line.empty()) lines.push_back(line);
+    return lines;
+}
+
 std::string fmt(const char* f, ...) __attribute__((format(printf, 1, 2)));
 std::string fmt(const char* f, ...) {
     char buf[512];
@@ -74,13 +125,20 @@ std::string fmt(const char* f, ...) {
 }
 
 // ---------------------------------------------------------------------------
-// FFmpeg AVIO backed by the tuner's TS ring.
+// FFmpeg AVIO backed by the tuner's TS ring. Every byte the demuxer reads is
+// also fed to the PSIP decoder, since libavformat ignores ATSC PSIP.
+struct TsSource {
+    hibiki::Tuner* tuner = nullptr;
+    psip::Decoder* psip = nullptr;
+};
+
 int ts_read(void* opaque, uint8_t* buf, int size) {
-    auto* t = static_cast<hibiki::Tuner*>(opaque);
+    auto* src = static_cast<TsSource*>(opaque);
     while (hibiki::g_running) {
-        int got = t->ReadTS(buf, (uint32_t)size);
+        int got = src->tuner->ReadTS(buf, (uint32_t)size);
         if (got > 0) {
             if (g_dump) std::fwrite(buf, 1, (size_t)got, g_dump);
+            if (src->psip) src->psip->feed(buf, (size_t)got);
             return got;
         }
     }
@@ -264,11 +322,11 @@ bool switch_audio(Media& m, int idx) {
 }
 
 // Probe the (already locked) channel and start decoding the main service.
-bool open_media(hibiki::Tuner& t, Media& m, SDL_Renderer* ren) {
+bool open_media(TsSource& src, Media& m, SDL_Renderer* ren) {
     m.fmt = avformat_alloc_context();
     if (!m.fmt) return false;
     auto* buf = static_cast<uint8_t*>(av_malloc(65536));
-    AVIOContext* avio = avio_alloc_context(buf, 65536, 0, &t, ts_read, nullptr, nullptr);
+    AVIOContext* avio = avio_alloc_context(buf, 65536, 0, &src, ts_read, nullptr, nullptr);
     if (!avio) { av_free(buf); return false; }
     m.fmt->pb = avio;
     m.fmt->probesize = 8 * 1024 * 1024;
@@ -420,6 +478,68 @@ void save_channels(const std::vector<ChannelEntry>& v) {
     std::fclose(f);
 }
 
+// PSIP cache: one file per RF channel (psip/<rf>.txt) so channel names and
+// listings are there as soon as a channel is tuned, before the carousel
+// comes round again. Tab-separated: C = virtual channel, E = event.
+std::string psip_cache_path(int rf) { return pref_dir() + fmt("psip/%d.txt", rf); }
+
+std::string cache_field(const std::string& s) {
+    std::string o = s;
+    for (auto& c : o) if (c == '\t' || c == '\n' || c == '\r') c = ' ';
+    return o;
+}
+
+void save_psip_cache(int rf, const psip::Decoder& d, int64_t now) {
+    SDL_CreateDirectory((pref_dir() + "psip").c_str());
+    std::string path = psip_cache_path(rf);
+    FILE* f = std::fopen((path + ".tmp").c_str(), "w");
+    if (!f) return;
+    for (const auto& c : d.channels())
+        std::fprintf(f, "C\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\n", c.major, c.minor,
+                     c.program_number, c.source_id, c.tsid, c.service_type, (int)c.hidden,
+                     (int)c.hide_guide, cache_field(c.name).c_str(), cache_field(c.description).c_str());
+    for (const auto& c : d.channels())
+        for (const auto& e : d.events(c.source_id, now))
+            std::fprintf(f, "E\t%d\t%d\t%lld\t%d\t%s\t%s\t%s\n", e.source_id, e.event_id,
+                         (long long)e.start, e.duration, cache_field(e.rating).c_str(),
+                         cache_field(e.title).c_str(), cache_field(e.description).c_str());
+    std::fclose(f);
+    std::rename((path + ".tmp").c_str(), path.c_str());
+}
+
+// Load cached data for `rf` into `d` (only_channels skips events).
+bool load_psip_cache(int rf, psip::Decoder& d, int64_t now, bool only_channels = false) {
+    FILE* f = std::fopen(psip_cache_path(rf).c_str(), "r");
+    if (!f) return false;
+    std::string line;
+    char buf[4096];
+    while (std::fgets(buf, sizeof(buf), f)) {
+        line = buf;
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
+        std::vector<std::string> v;
+        size_t a = 0, b;
+        while ((b = line.find('\t', a)) != std::string::npos) { v.push_back(line.substr(a, b - a)); a = b + 1; }
+        v.push_back(line.substr(a));
+        if (v[0] == "C" && v.size() >= 11) {
+            psip::VirtualChannel c;
+            c.major = std::atoi(v[1].c_str()); c.minor = std::atoi(v[2].c_str());
+            c.program_number = std::atoi(v[3].c_str()); c.source_id = std::atoi(v[4].c_str());
+            c.tsid = std::atoi(v[5].c_str()); c.service_type = std::atoi(v[6].c_str());
+            c.hidden = v[7] == "1"; c.hide_guide = v[8] == "1";
+            c.name = v[9]; c.description = v[10];
+            d.add_channel(c);
+        } else if (v[0] == "E" && v.size() >= 8 && !only_channels) {
+            psip::Event e;
+            e.source_id = std::atoi(v[1].c_str()); e.event_id = std::atoi(v[2].c_str());
+            e.start = std::atoll(v[3].c_str()); e.duration = std::atoi(v[4].c_str());
+            e.rating = v[5]; e.title = v[6]; e.description = v[7];
+            if (e.end() > now) d.add_event(e);
+        }
+    }
+    std::fclose(f);
+    return true;
+}
+
 // User preferences (settings.txt, key=value).
 enum Scale { SCALE_FIT, SCALE_FULL, SCALE_STRETCH, SCALE_COUNT };
 const char* kScaleNames[SCALE_COUNT] = {"FIT", "FULL", "STRETCH"};
@@ -563,6 +683,15 @@ private:
     std::string subch_label() const;
     std::string audio_value() const;
     void cycle_audio();
+    // -- PSIP / guide --
+    int current_program() const { return media_ok_ ? m_.program : demo_program_; }
+    const psip::VirtualChannel* current_vc() const { return psip_.by_program(current_program()); }
+    std::vector<const psip::VirtualChannel*> guide_channels() const;
+    std::string vc_label(const psip::VirtualChannel& vc) const;
+    std::string clock_hm(int64_t t) const;
+    std::string rf_names(int rf) const;
+    void watch_program(int program_number);
+    void psip_housekeeping(bool force = false);
     // -- drawing --
     void present();
     void maybe_screenshot();
@@ -574,6 +703,8 @@ private:
     osd::Page main_page();
     osd::Page channels_page();
     osd::Page guide_page();
+    osd::Page guide_channel_page(int source_id);
+    osd::Page event_page(int source_id, int event_id);
     osd::Page programs_page();
     osd::Page audio_page();
     osd::Page feature_page();
@@ -607,6 +738,12 @@ private:
     uint64_t start_ms_ = 0, last_present_ = 0;
     bool shot_saved_ = false;
     uint64_t menu_refresh_ms_ = 0;
+    // PSIP: decoded from the live TS (tapped in ts_read) plus the per-RF cache.
+    psip::Decoder psip_;
+    TsSource src_{&tuner_, &psip_};
+    int demo_program_ = -1;
+    uint64_t psip_saved_gen_ = 0, psip_saved_ms_ = 0;
+    std::map<int, std::vector<psip::VirtualChannel>> rf_vct_;  // names per RF, from caches
 };
 
 int App::scanned_index(int ch) const {
@@ -616,9 +753,14 @@ int App::scanned_index(int ch) const {
 
 // ---- tuning ----------------------------------------------------------------
 bool App::tune_to(int ch, uint32_t f) {
+    psip_housekeeping(true);   // keep what we learned about the old channel
     close_media(m_);
     media_ok_ = false;
     have_frame_ = false;
+    psip_.reset();
+    demo_program_ = -1;
+    if (!opt_.demo) load_psip_cache(ch, psip_, (int64_t)std::time(nullptr));
+    psip_saved_gen_ = psip_.generation();
     channel_ = ch;
     freq_ = f;
     set_.last_channel = ch;
@@ -630,6 +772,11 @@ bool App::tune_to(int ch, uint32_t f) {
     if (opt_.demo) {
         SDL_Delay(250);
         ok = scanned_index(ch) >= 0;
+        if (ok) {   // synthetic PSIP through the real decoder
+            std::vector<uint8_t> ts = psip::build_demo_ts(ch, (int64_t)std::time(nullptr));
+            psip_.feed(ts.data(), ts.size());
+            if (!psip_.channels().empty()) demo_program_ = psip_.channels()[0].program_number;
+        }
     } else {
         std::printf("[*] tuning channel %d (%.3f MHz)...\n", ch, f / 1e6);
         hibiki::AtscStatus st;
@@ -637,7 +784,7 @@ bool App::tune_to(int ch, uint32_t f) {
             std::printf("[+] locked (SNR %.1f dB)\n", st.snr_db_tenths / 10.0);
             tuning_ = fmt("CH %d  READING STREAM", ch);
             present();
-            ok = open_media(tuner_, m_, ren_);
+            ok = open_media(src_, m_, ren_);
             if (!ok) close_media(m_);
         } else {
             std::fprintf(stderr, "[-] channel %d did not lock\n", ch);
@@ -778,6 +925,7 @@ std::string App::res_label() const {
 }
 
 std::string App::subch_label() const {
+    if (const psip::VirtualChannel* vc = current_vc()) return vc_label(*vc);
     if (!media_ok_) return "---";
     auto progs = video_programs(m_.fmt);
     for (size_t i = 0; i < progs.size(); ++i)
@@ -800,6 +948,70 @@ void App::cycle_audio() {
     switch_audio(m_, aud[(pos + 1) % aud.size()]);
     apply_gain();
     toast("AUDIO: " + audio_value());
+}
+
+// ---- PSIP / guide helpers ----------------------------------------------------
+std::vector<const psip::VirtualChannel*> App::guide_channels() const {
+    std::vector<const psip::VirtualChannel*> v;
+    for (const auto& c : psip_.channels())
+        if (!c.hidden && !c.hide_guide) v.push_back(&c);
+    return v;
+}
+
+std::string App::vc_label(const psip::VirtualChannel& vc) const {
+    return fmt("%d-%d %s", vc.major, vc.minor, vcr_text(vc.name, 7).c_str());
+}
+
+std::string App::clock_hm(int64_t t) const {
+    std::time_t tt = (std::time_t)t;
+    std::tm lt{};
+    localtime_r(&tt, &lt);
+    char b[16];
+    if (set_.clock24) { std::strftime(b, sizeof(b), "%H:%M", &lt); return b; }
+    std::strftime(b, sizeof(b), "%I:%M", &lt);
+    return std::string(b) + (lt.tm_hour < 12 ? "A" : "P");
+}
+
+std::string App::rf_names(int rf) const {
+    const std::vector<psip::VirtualChannel>* v = nullptr;
+    if (rf == channel_ && !psip_.channels().empty()) v = &psip_.channels();
+    else if (auto it = rf_vct_.find(rf); it != rf_vct_.end()) v = &it->second;
+    if (!v || v->empty()) return "";
+    std::string s = vc_label(v->front());
+    if (v->size() > 1) s += fmt(" +%zu", v->size() - 1);
+    return s;
+}
+
+void App::watch_program(int pn) {
+    if (pn == current_program()) return;
+    if (media_ok_) {
+        if (!find_program(m_.fmt, pn) || !select_program(m_, ren_, pn)) {
+            toast("SUB CHANNEL NOT IN STREAM");
+            if (!m_.vdec) select_program(m_, ren_, -1);
+        }
+        have_frame_ = false;
+        apply_gain();
+    } else if (opt_.demo) {
+        demo_program_ = pn;
+    }
+    show_banner();
+}
+
+// Persist the current channel's PSIP every 15 s when it changed (and on retune
+// / exit), and keep the per-RF name table for the channel list current.
+void App::psip_housekeeping(bool force) {
+    if (channel_ <= 0 || psip_.channels().empty()) return;
+    if (psip_.generation() == psip_saved_gen_) return;
+    uint64_t ms = SDL_GetTicks();
+    if (!force && ms - psip_saved_ms_ < 15000) return;
+    rf_vct_[channel_] = psip_.channels();
+    if (!opt_.demo) {
+        int64_t now = psip_.now_utc();
+        psip_.prune(now);
+        save_psip_cache(channel_, psip_, now);
+    }
+    psip_saved_gen_ = psip_.generation();
+    psip_saved_ms_ = ms;
 }
 
 // ---- input -----------------------------------------------------------------
@@ -876,11 +1088,11 @@ osd::Page App::main_page() {
         it = {}; it.label = "CHANNEL LIST";
         it.activate = [this] { menu_.push(channels_page()); };
         pg.items.push_back(it);
-        it = {}; it.label = "PROGRAM GUIDE"; it.note = "SOON";
+        it = {}; it.label = "PROGRAM GUIDE";
         it.activate = [this] { menu_.push(guide_page()); };
         pg.items.push_back(it);
         it = {}; it.label = "SUB CHANNEL"; it.value = [this] { return subch_label(); };
-        it.enabled = media_ok_;
+        it.enabled = media_ok_ || !psip_.channels().empty();
         it.activate = [this] { menu_.push(programs_page()); };
         pg.items.push_back(it);
         it = {}; it.label = "AUDIO TRACK"; it.value = [this] { return audio_value(); };
@@ -928,7 +1140,10 @@ osd::Page App::channels_page() {
         }
         for (const auto& e : scanned_) {
             osd::Item it;
-            it.label = fmt("CH %2d  %7.2f MHZ  %4.1f DB", e.ch, e.freq / 1e6, e.snr);
+            std::string names = rf_names(e.ch);
+            it.label = names.empty()
+                ? fmt("CH %2d  %7.2f MHZ  %4.1f DB", e.ch, e.freq / 1e6, e.snr)
+                : fmt("CH %2d  %-19s %4.1fDB", e.ch, names.substr(0, 19).c_str(), e.snr);
             it.marked = e.ch == channel_;
             if (set_.favs.count(e.ch)) it.note = "FAV";
             int ch = e.ch; uint32_t f = e.freq;
@@ -950,13 +1165,139 @@ osd::Page App::channels_page() {
 osd::Page App::guide_page() {
     osd::Page p;
     p.title = "PROGRAM GUIDE";
-    p.hints = {"END   :ESC KEY"};
+    p.hints = {"SELECT:\xE2\x96\xB2\xE2\x96\xBC KEY", "OPEN  :\xE2\x96\xBA KEY", "END   :ESC KEY"};
+    auto chans = guide_channels();
+    for (size_t i = 0; i < chans.size(); ++i)
+        if (chans[i]->program_number == current_program()) p.sel = (int)i;
     p.build = [this](osd::Page& pg) {
-        pg.body = {fmt("CH %d  SUB %s", channel_, subch_label().c_str()),
-                   "",
-                   "NO GUIDE DATA.",
-                   "PSIP EIT/ETT DECODING",
-                   "IS NOT IMPLEMENTED YET."};
+        pg.items.clear();
+        pg.body.clear();
+        int64_t now = psip_.now_utc();
+        std::time_t tt = (std::time_t)now;
+        std::tm lt{};
+        localtime_r(&tt, &lt);
+        char date[16];
+        std::strftime(date, sizeof(date), "%a %b %d", &lt);
+        pg.body.push_back(upper(date) + "  " + clock_hm(now) + fmt("   RF %d", channel_));
+        auto chans = guide_channels();
+        if (chans.empty()) {
+            pg.body.push_back("");
+            if (media_ok_) {
+                pg.body.push_back("COLLECTING GUIDE DATA" + std::string((size_t)(SDL_GetTicks() / 500 % 4), '.'));
+                pg.body.push_back(fmt("PSIP SECTIONS: %llu", (unsigned long long)psip_.sections_ok()));
+            } else {
+                pg.body.push_back("NO SIGNAL - NO GUIDE DATA");
+            }
+            return;
+        }
+        for (const psip::VirtualChannel* vc : chans) {
+            const psip::Event* e = psip_.at(vc->source_id, now);
+            std::string head = fmt("%d-%d", vc->major, vc->minor);
+            head.resize(std::max<size_t>(head.size() + 1, 6), ' ');
+            std::string name = vcr_text(vc->name, 7);
+            name.resize(8, ' ');
+            osd::Item it;
+            it.label = head + name + (e ? vcr_text(e->title, 18) : std::string("(NO LISTINGS)"));
+            it.marked = vc->program_number == current_program();
+            int src = vc->source_id;
+            it.activate = [this, src] { menu_.push(guide_channel_page(src)); };
+            pg.items.push_back(it);
+        }
+    };
+    return p;
+}
+
+osd::Page App::guide_channel_page(int source_id) {
+    osd::Page p;
+    const psip::VirtualChannel* vc0 = psip_.by_source(source_id);
+    p.title = vc0 ? vc_label(*vc0) : "GUIDE";
+    p.hints = {"SELECT:\xE2\x96\xB2\xE2\x96\xBC KEY", "INFO  :ENTER KEY",
+               "SUB CH:\xE2\x97\x84\xE2\x96\xBA KEY", "END   :ESC KEY"};
+    p.build = [this, source_id](osd::Page& pg) {
+        pg.items.clear();
+        pg.body.clear();
+        const psip::VirtualChannel* vc = psip_.by_source(source_id);
+        if (vc && !vc->description.empty()) pg.body.push_back(vcr_text(vc->description, 33));
+        if (vc && vc->program_number != current_program()) {
+            osd::Item w;
+            w.label = "WATCH " + vc_label(*vc);
+            int pn = vc->program_number;
+            w.activate = [this, pn] { menu_.close(); watch_program(pn); };
+            pg.items.push_back(w);
+        }
+        int64_t now = psip_.now_utc();
+        for (const psip::Event& e : psip_.events(source_id, now)) {
+            osd::Item it;
+            bool on = e.start <= now && now < e.end();
+            it.label = clock_hm(e.start) + " " + vcr_text(e.title, 24);
+            it.marked = on;
+            int mins = e.duration / 60;
+            it.note = on ? "ON" : (mins % 60 ? (mins >= 60 ? fmt("%dH%02d", mins / 60, mins % 60) : fmt("%dM", mins))
+                                             : fmt("%dH", mins / 60));
+            int eid = e.event_id;
+            it.activate = [this, source_id, eid] { menu_.push(event_page(source_id, eid)); };
+            pg.items.push_back(it);
+        }
+        if (psip_.events(source_id, now).empty()) pg.body.push_back("NO LISTINGS YET");
+    };
+    p.on_key = [this, source_id](SDL_Keycode k) {
+        if (k != SDLK_LEFT && k != SDLK_RIGHT) return false;
+        auto chans = guide_channels();
+        if (chans.size() < 2) return true;
+        size_t i = 0;
+        while (i < chans.size() && chans[i]->source_id != source_id) ++i;
+        size_t n = chans.size();
+        size_t j = k == SDLK_RIGHT ? (i + 1) % n : (i + n - 1) % n;
+        int next = chans[j]->source_id;
+        menu_.pop();
+        menu_.push(guide_channel_page(next));
+        return true;
+    };
+    return p;
+}
+
+osd::Page App::event_page(int source_id, int event_id) {
+    osd::Page p;
+    p.title = "PROGRAM INFO";
+    p.hints = {"END   :ESC KEY"};
+    p.build = [this, source_id, event_id](osd::Page& pg) {
+        pg.items.clear();
+        pg.body.clear();
+        const psip::VirtualChannel* vc = psip_.by_source(source_id);
+        const psip::Event* ev = nullptr;
+        std::vector<psip::Event> evs = psip_.events(source_id);
+        for (const auto& e : evs) if (e.event_id == event_id) ev = &e;
+        if (!ev) { pg.body = {"EVENT NO LONGER LISTED"}; return; }
+        for (const auto& l : wrap(vcr_text(ev->title), 33)) pg.body.push_back(l);
+        std::time_t tt = (std::time_t)ev->start;
+        std::tm lt{};
+        localtime_r(&tt, &lt);
+        char day[8];
+        std::strftime(day, sizeof(day), "%a", &lt);
+        pg.body.push_back(upper(day) + " " + clock_hm(ev->start) + "-" + clock_hm(ev->end()) +
+                          fmt("  %d MIN", ev->duration / 60));
+        std::string meta = vc ? vc_label(*vc) : "";
+        if (!ev->rating.empty()) meta += (meta.empty() ? "" : "  ") + vcr_text(ev->rating, 12);
+        if (!meta.empty()) pg.body.push_back(meta);
+        if (!ev->description.empty()) {
+            pg.body.push_back("");
+            auto lines = wrap(vcr_text(ev->description), 33);
+            const size_t max_lines = 5;
+            if (lines.size() > max_lines) {
+                lines.resize(max_lines);
+                std::string& last = lines.back();
+                if (last.size() > 30) last.resize(30);
+                last += "...";
+            }
+            for (const auto& l : lines) pg.body.push_back(l);
+        }
+        if (vc && vc->program_number != current_program()) {
+            osd::Item w;
+            w.label = "WATCH " + vc_label(*vc);
+            int pn = vc->program_number;
+            w.activate = [this, pn] { menu_.close(); watch_program(pn); };
+            pg.items.push_back(w);
+        }
     };
     return p;
 }
@@ -966,38 +1307,31 @@ osd::Page App::programs_page() {
     p.title = "SUB CHANNEL";
     p.build = [this](osd::Page& pg) {
         pg.items.clear();
-        if (!media_ok_) return;
-        auto progs = video_programs(m_.fmt);
-        for (size_t i = 0; i < progs.size(); ++i) {
-            const AVProgram* pr = progs[i];
-            auto v = streams_of_type(m_.fmt, pr, AVMEDIA_TYPE_VIDEO);
-            auto a = streams_of_type(m_.fmt, pr, AVMEDIA_TYPE_AUDIO);
-            const AVCodecParameters* cp = m_.fmt->streams[v[0]]->codecpar;
+        pg.body.clear();
+        auto add = [&](int pn, const std::string& detail, const std::string& note) {
             osd::Item it;
-            it.label = fmt("%d-%zu  %4dX%-4d %zu AUD", channel_, i + 1, cp->width, cp->height,
-                           a.size());
-            it.note = fmt("PROG %d", pr->id);
-            it.marked = pr->id == m_.program;
-            int id = pr->id;
-            it.activate = [this, id] {
-                if (id == m_.program) return;
-                if (!select_program(m_, ren_, id)) {
-                    toast("SUB CHANNEL FAILED");
-                    select_program(m_, ren_, -1);
-                }
-                have_frame_ = false;
-                apply_gain();
-                show_banner();
-            };
+            const psip::VirtualChannel* vc = psip_.by_program(pn);
+            std::string head = vc ? vc_label(*vc) : fmt("%d PROG %d", channel_, pn);
+            head.resize(std::max<size_t>(head.size() + 1, 14), ' ');
+            it.label = head + detail;
+            it.note = note;
+            it.marked = pn == current_program();
+            it.activate = [this, pn] { watch_program(pn); };
             pg.items.push_back(it);
+            if (it.marked) pg.sel = (int)pg.items.size() - 1;
+        };
+        if (media_ok_) {
+            for (const AVProgram* pr : video_programs(m_.fmt)) {
+                auto v = streams_of_type(m_.fmt, pr, AVMEDIA_TYPE_VIDEO);
+                auto a = streams_of_type(m_.fmt, pr, AVMEDIA_TYPE_AUDIO);
+                const AVCodecParameters* cp = m_.fmt->streams[v[0]]->codecpar;
+                add(pr->id, fmt("%dX%d", cp->width, cp->height), fmt("%zu AUD", a.size()));
+            }
+        } else {
+            for (const auto& c : psip_.channels()) if (!c.hidden) add(c.program_number, "", "");
         }
         if (pg.items.empty()) pg.body = {"NO PROGRAM TABLE"};
     };
-    p.sel = 0;
-    if (media_ok_) {
-        auto progs = video_programs(m_.fmt);
-        for (size_t i = 0; i < progs.size(); ++i) if (progs[i]->id == m_.program) p.sel = (int)i;
-    }
     return p;
 }
 
@@ -1115,7 +1449,8 @@ osd::Page App::about_page() {
                    st_ok_ ? fmt("SIGNAL: %.1f DB %s", st_.snr_db_tenths / 10.0,
                                 st_.locked() ? "LOCKED" : "NO LOCK")
                           : std::string("SIGNAL: ---"),
-                   "VIDEO : " + res_label()};
+                   "VIDEO : " + res_label(),
+                   fmt("PSIP  : %zu CH  %zu EVENTS", psip_.channels().size(), psip_.event_count())};
     };
     return p;
 }
@@ -1185,13 +1520,27 @@ void App::draw_hud() {
         osd_.text(Font::Small, status, mx, my, osd::kWhite, Align::Left, Style::Vhs);
         float y = my + sh;
         float big = osd_.line_h(Font::Big);
-        osd_.text(Font::Big, fmt("CH %d", channel_), mx, y, osd::kWhite, Align::Left, Style::Vhs);
+        // With PSIP: virtual channel number + station name and what is on now.
+        const psip::VirtualChannel* vc = current_vc();
+        std::string num = vc ? fmt("CH %d-%d", vc->major, vc->minor) : fmt("CH %d", channel_);
+        osd_.text(Font::Big, num, mx, y, osd::kWhite, Align::Left, Style::Vhs);
         y += big * 0.92f;
-        std::string sub = media_ok_ ? "  SUB " + subch_label() : "";
-        osd_.text(Font::Small, fmt("%.2f MHZ", freq_ / 1e6) + sub, mx, y, osd::kWhite,
-                  Align::Left, Style::Vhs);
-        if (set_.favs.count(channel_))
-            osd_.text(Font::Small, "FAV", mx, y + sh, osd::kVcrYellow, Align::Left, Style::Vhs);
+        std::string line = vc ? vcr_text(vc->name, 7) + fmt("  RF %d", channel_)
+                              : fmt("%.2f MHZ", freq_ / 1e6) +
+                                    (media_ok_ ? "  SUB " + subch_label() : std::string());
+        if (set_.favs.count(channel_)) line += "  FAV";
+        osd_.text(Font::Small, line, mx, y, osd::kWhite, Align::Left, Style::Vhs);
+        y += sh;
+        if (vc) {
+            int64_t t_now = psip_.now_utc();
+            if (const psip::Event* e = psip_.at(vc->source_id, t_now)) {
+                osd_.text(Font::Small, clock_hm(e->start) + "-" + clock_hm(e->end()) +
+                              (e->rating.empty() ? "" : "  " + vcr_text(e->rating, 8)),
+                          mx, y, osd::kVcrYellow, Align::Left, Style::Vhs);
+                osd_.text(Font::Small, vcr_text(e->title, 30), mx, y + sh, osd::kVcrYellow,
+                          Align::Left, Style::Vhs);
+            }
+        }
 
         // Top-right: date and clock.
         std::time_t t = std::time(nullptr);
@@ -1352,6 +1701,10 @@ int App::run() {
             return 1;
         }
         scanned_ = load_channels();
+        for (const auto& e : scanned_) {
+            psip::Decoder tmp;
+            if (load_psip_cache(e.ch, tmp, 0, true)) rf_vct_[e.ch] = tmp.channels();
+        }
         if (opt_.rescan || scanned_.empty()) do_scan();
     }
     if (!hibiki::g_running) { if (!opt_.demo) tuner_.Close(); return 0; }
@@ -1402,6 +1755,7 @@ int App::run() {
         if (!hibiki::g_running) break;
         if (!digits_.empty() && SDL_GetTicks() - digits_ms_ > 2000) commit_digits();
         poll_status();
+        psip_housekeeping();
 
         bool dirty = false;
         if (media_ok_) {
@@ -1433,6 +1787,7 @@ int App::run() {
     }
 
     av_packet_free(&pkt);
+    psip_housekeeping(true);
     close_media(m_);
     if (bars_) SDL_DestroyTexture(bars_);
     if (!opt_.demo) tuner_.Close();

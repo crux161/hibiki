@@ -44,6 +44,14 @@ target_link_directories(hibiki_core PUBLIC ${HIBIKI_USB_LIBRARY_DIRS})
 target_link_libraries(hibiki_core PUBLIC ${HIBIKI_USB_LIBRARIES} Threads::Threads)
 target_compile_options(hibiki_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
+# ---- ATSC PSIP decoder (guide data) + its tests ----
+add_library(hibiki_psip STATIC src/psip.cpp)
+target_compile_options(hibiki_psip PRIVATE -Wall -Wextra -Wno-unused-parameter)
+enable_testing()
+add_executable(psip_test tests/psip_test.cpp)
+target_link_libraries(psip_test PRIVATE hibiki_psip)
+add_test(NAME psip COMMAND psip_test)
+
 # ---- CLI ----
 add_executable(hibiki src/main.cpp)
 target_link_libraries(hibiki PRIVATE hibiki_core)
@@ -106,7 +114,7 @@ if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
   target_link_directories(hibiki_sdl PRIVATE
     ${SDL3_LIBRARY_DIRS} ${SDL3_TTF_LIBRARY_DIRS} ${FFMPEG_LIBRARY_DIRS})
   target_link_libraries(hibiki_sdl PRIVATE
-    hibiki_core ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
+    hibiki_core hibiki_psip ${SDL3_LIBRARIES} ${SDL3_TTF_LIBRARIES} ${FFMPEG_LIBRARIES})
   target_compile_options(hibiki_sdl PRIVATE -Wall -Wextra -Wno-unused-parameter)
 else()
   message(STATUS "hibiki_sdl skipped (need SDL3 + SDL3_ttf + FFmpeg)")

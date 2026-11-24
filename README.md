@@ -35,7 +35,7 @@ Front-end controls (remote-style):
 | `←` `→`, `PageUp` `PageDown` | channel down / up (in menus: adjust value) |
 | `0`–`9` | direct channel entry (commits after 2 digits, `Enter` or 2 s) |
 | `C` / `L` | channel list (`Space` toggles favourite) |
-| `G` | program guide (placeholder until PSIP is decoded) |
+| `G` | program guide (in a channel's listing `←` `→` switch sub-channel, `Enter` = info) |
 | `A` | next audio track |
 | `Z` | screen scale: FIT / FULL / STRETCH |
 | `I` | show channel info banner |
@@ -45,9 +45,23 @@ Front-end controls (remote-style):
 MENU: channel list, program guide, sub channel (the RF channel's MPEG
 programs), audio track, screen scale, set up feature (HUD, scanlines, 12/24 h
 clock, volume, favourites-only surfing), set up channel (scan range 2-36 or
-2-51, auto scan, clear favourites) and about. Items marked `SOON` (guide data,
-closed captions, record/timer, parental lock) are placeholders for PadTV parity
-work. Preferences persist in `settings.txt` next to `channels.txt`.
+2-51, auto scan, clear favourites) and about. Items marked `SOON` (closed
+captions, record/timer, parental lock) are placeholders for PadTV parity work.
+Preferences persist in `settings.txt` next to `channels.txt`.
+
+### Program guide (ATSC PSIP)
+
+libavformat ignores ATSC PSIP, so `src/psip.{h,cpp}` decodes it from the raw
+TS as the demuxer reads it: MGT, terrestrial/cable VCT (virtual channel
+`major-minor` numbers and names, mapped to MPEG programs), STT (broadcast
+time), EIT-k (events, content-advisory rating) and ETT (descriptions). The HUD
+shows `CH 3-1`, the station name and what is on now; the guide lists each
+sub-channel's now-playing title, its schedule and per-event info. Guide data is
+cached per RF channel in `psip/<rf>.txt` (next to `channels.txt`), so names and
+listings appear as soon as a channel is tuned and the channel list shows
+station names. Huffman-compressed strings (A/65 Annex C) are not decoded yet
+and show as `[COMPRESSED]`. `ctest` (or `build/psip_test`) runs the decoder
+against a synthetic PSIP stream; `--demo` feeds the same stream to the UI.
 
 `Hibiki --demo` runs the UI without a tuner (colour bars, fake channel memory),
 and `--keys Return,Down,...` injects key presses at start-up. Combined with
