@@ -45,6 +45,10 @@ The on-screen display (`src/osd.{h,cpp}`) uses the bundled VCR OSD font
 blue VCR set-up menu. With no picture the screen falls back to VCR "blue back"
 with `NO SIGNAL` instead of exiting.
 
+Planned deinterlacing, field matching, VideoToolbox/Metal integration, and portable
+ARM64 CPU/NEON work are broken into implementation milestones in the
+[video playback roadmap](docs/VIDEO_PIPELINE_ROADMAP.md).
+
 Front-end controls (remote-style; `?` / `F1` opens the shortcut guide):
 
 | Key | Action |
