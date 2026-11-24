@@ -417,6 +417,12 @@ std::string resolve_fw(const std::string& explicit_path, bool explicit_given) {
     const char* base = SDL_GetBasePath();
     std::string b = base ? base : "";
     cands.push_back(b + "../Resources/fw/" + name);
+#ifdef HIBIKI_SOURCE_DIR
+    cands.push_back(std::string(HIBIKI_SOURCE_DIR) + "/fw/" + name);
+#endif
+#ifdef HIBIKI_MAIN_CHECKOUT_DIR   // git worktree builds: fw/ lives in the main checkout
+    cands.push_back(std::string(HIBIKI_MAIN_CHECKOUT_DIR) + "/fw/" + name);
+#endif
     std::string up = b;
     for (int i = 0; i < 6; ++i) { cands.push_back(up + "fw/" + name); up += "../"; }
     cands.push_back(std::string("fw/") + name);
@@ -692,6 +698,10 @@ private:
     std::string rf_names(int rf) const;
     void watch_program(int program_number);
     void psip_housekeeping(bool force = false);
+    // -- tuner bring-up (the app stays up without a tuner) --
+    bool init_tuner();
+    void retry_tuner();
+    osd::Page tuner_error_page();
     // -- drawing --
     void present();
     void maybe_screenshot();
@@ -742,6 +752,8 @@ private:
     psip::Decoder psip_;
     TsSource src_{&tuner_, &psip_};
     int demo_program_ = -1;
+    bool tuner_ok_ = false;
+    std::vector<std::string> tuner_err_;
     uint64_t psip_saved_gen_ = 0, psip_saved_ms_ = 0;
     std::map<int, std::vector<psip::VirtualChannel>> rf_vct_;  // names per RF, from caches
 };
@@ -766,6 +778,7 @@ bool App::tune_to(int ch, uint32_t f) {
     set_.last_channel = ch;
     save();
     show_banner();
+    if (!opt_.demo && !tuner_ok_) return false;
     tuning_ = fmt("TUNING CH %d", ch);
     present();   // the tune below blocks for up to several seconds
     bool ok = false;
@@ -826,7 +839,7 @@ void App::commit_digits() {
 }
 
 void App::poll_status() {
-    if (opt_.no_hud) return;
+    if (opt_.no_hud || (!opt_.demo && !tuner_ok_)) return;
     uint64_t now = SDL_GetTicks();
     if (st_ms_ && now - st_ms_ < 500) return;
     st_ms_ = now;
@@ -842,6 +855,7 @@ void App::poll_status() {
 }
 
 void App::do_scan() {
+    if (!opt_.demo && !tuner_ok_) { toast("NO TUNER - CANNOT SCAN"); return; }
     close_media(m_);
     media_ok_ = false;
     have_frame_ = false;
@@ -1014,6 +1028,68 @@ void App::psip_housekeeping(bool force) {
     psip_saved_ms_ = ms;
 }
 
+// ---- tuner bring-up ------------------------------------------------------------
+// Launched from Finder there is no terminal, so failures become an on-screen
+// page (with retry) instead of a silent exit.
+bool App::init_tuner() {
+    tuner_err_.clear();
+    fw_path_ = resolve_fw(opt_.fw_path, opt_.fw_explicit);
+    std::printf("[*] firmware: %s\n", fw_path_.c_str());
+    if (!file_exists(fw_path_)) {
+        std::fprintf(stderr, "[-] firmware not found: %s (set --fw or $HIBIKI_FW)\n",
+                     fw_path_.c_str());
+        tuner_err_ = {"FIRMWARE NOT FOUND", "",
+                      "PUT MBIN_MXL_EAGLE_FW.BIN IN:",
+                      " ~/Library/Application Support/",
+                      "   hibiki/fw/",
+                      "OR SET $HIBIKI_FW / --fw PATH"};
+        tuner_ok_ = false;
+        return false;
+    }
+    hibiki::TunerConfig cfg;
+    cfg.fw_path = fw_path_;
+    cfg.trace = opt_.trace;
+    tuner_ok_ = tuner_.Init(cfg) == 0;
+    if (!tuner_ok_) {
+        std::fprintf(stderr, "[-] tuner init failed\n");
+        tuner_err_ = {"TUNER NOT FOUND", "",
+                      "CHECK THE STICK IS PLUGGED IN",
+                      "AND ITS USB FIRMWARE IS LOADED:",
+                      " scripts/wake_tuner.py",
+                      "(USB 1F4D:E691 EXPECTED)"};
+    }
+    return tuner_ok_;
+}
+
+void App::retry_tuner() {
+    tuner_.Close();
+    if (!init_tuner()) { menu_.refresh(); toast("STILL NO TUNER"); return; }
+    menu_.close();
+    if (scanned_.empty()) { do_scan(); return; }   // scan tunes when done
+    int i = std::max(0, scanned_index(channel_ ? channel_ : set_.last_channel));
+    tune_to(scanned_[i].ch, scanned_[i].freq);
+}
+
+osd::Page App::tuner_error_page() {
+    osd::Page p;
+    p.title = "TUNER ERROR";
+    p.hints = {"SELECT:\xE2\x96\xB2\xE2\x96\xBC KEY", "SET   :\xE2\x96\xBA KEY",
+               "BACK  :ESC KEY"};
+    p.build = [this](osd::Page& pg) {
+        pg.body = tuner_err_;
+        pg.items.clear();
+        osd::Item it;
+        it.label = "RETRY";
+        it.activate = [this] { retry_tuner(); };
+        pg.items.push_back(it);
+        it = {};
+        it.label = "QUIT";
+        it.activate = [] { hibiki::g_running = false; };
+        pg.items.push_back(it);
+    };
+    return p;
+}
+
 // ---- input -----------------------------------------------------------------
 void App::handle_key(SDL_Keycode k) {
     if (menu_.open() && menu_.key(k)) return;
@@ -1036,6 +1112,7 @@ void App::handle_key(SDL_Keycode k) {
         else hibiki::g_running = false;
         break;
     case SDLK_Q: hibiki::g_running = false; break;
+    case SDLK_R: if (!opt_.demo && !tuner_ok_) retry_tuner(); break;
     case SDLK_RETURN:
     case SDLK_KP_ENTER:
     case SDLK_TAB:
@@ -1691,23 +1768,14 @@ int App::run() {
             scanned_.push_back({c, hibiki::atsc_channel_freq_hz(c), 18.0f + c * 0.3f});
         set_.favs = {11, 27};
     } else {
-        std::printf("[*] firmware: %s\n", fw_path_.c_str());
-        hibiki::TunerConfig cfg;
-        cfg.fw_path = fw_path_;
-        cfg.trace = opt_.trace;
-        if (tuner_.Init(cfg) != 0) {
-            std::fprintf(stderr, "tuner init failed (firmware '%s' not found? set --fw "
-                                 "or $HIBIKI_FW)\n", cfg.fw_path.c_str());
-            return 1;
-        }
         scanned_ = load_channels();
         for (const auto& e : scanned_) {
             psip::Decoder tmp;
             if (load_psip_cache(e.ch, tmp, 0, true)) rf_vct_[e.ch] = tmp.channels();
         }
-        if (opt_.rescan || scanned_.empty()) do_scan();
+        if (init_tuner() && (opt_.rescan || scanned_.empty())) do_scan();
     }
-    if (!hibiki::g_running) { if (!opt_.demo) tuner_.Close(); return 0; }
+    if (!hibiki::g_running) { tuner_.Close(); return 0; }
 
     // Start channel: --channel/--freq, else the last watched, else the first scanned.
     int ch = opt_.channel;
@@ -1722,6 +1790,7 @@ int App::run() {
     if (!media_ok_ || channel_ != ch) tune_to(ch, f);
 
     if (opt_.start_menu) menu_.push(main_page());
+    if (!opt_.demo && !tuner_ok_) menu_.push(tuner_error_page());
     // Test hook: inject key presses (SDL key names, comma separated).
     if (!opt_.keys.empty()) {
         std::stringstream ss(opt_.keys);
@@ -1790,7 +1859,7 @@ int App::run() {
     psip_housekeeping(true);
     close_media(m_);
     if (bars_) SDL_DestroyTexture(bars_);
-    if (!opt_.demo) tuner_.Close();
+    tuner_.Close();
     osd_.release();
     SDL_DestroyRenderer(ren_);
     SDL_DestroyWindow(win_);

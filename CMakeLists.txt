@@ -109,6 +109,22 @@ if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
     set_source_files_properties("${HIBIKI_FONT}" PROPERTIES
       MACOSX_PACKAGE_LOCATION "Resources/font")
   endif()
+  # Let a dev build find the (gitignored, non-redistributable) firmware in the
+  # source tree, or in the main checkout when building from a git worktree.
+  target_compile_definitions(hibiki_sdl PRIVATE
+    HIBIKI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  find_package(Git QUIET)
+  if(GIT_FOUND)
+    execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --path-format=absolute --git-common-dir
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    OUTPUT_VARIABLE _hibiki_git_common OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET RESULT_VARIABLE _hibiki_git_rc)
+    if(_hibiki_git_rc EQUAL 0 AND _hibiki_git_common)
+      get_filename_component(_hibiki_main_checkout "${_hibiki_git_common}" DIRECTORY)
+      target_compile_definitions(hibiki_sdl PRIVATE
+        HIBIKI_MAIN_CHECKOUT_DIR="${_hibiki_main_checkout}")
+    endif()
+  endif()
   target_include_directories(hibiki_sdl PRIVATE
     ${SDL3_INCLUDE_DIRS} ${SDL3_TTF_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIRS})
   target_link_directories(hibiki_sdl PRIVATE

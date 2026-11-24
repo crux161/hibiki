@@ -73,6 +73,10 @@ separately (verify against the SHA-256 table below) and place them in `fw/`, or
 point the app at them with `--fw <path>` / `$HIBIKI_FW` /
 `~/Library/Application Support/hibiki/fw/`. The Eagle blob
 (`mbin_mxl_eagle_fw.bin`) is what the tuner loads at runtime.
+A local build also looks in the source tree's `fw/` and, when built from a git
+worktree, in the main checkout's `fw/`. If the firmware or the stick is
+missing, the app stays open on a `TUNER ERROR` page (with `RETRY`, or `R`)
+rather than quitting, since a Finder launch has no terminal to show errors.
 
 ### Carrying the firmware as base64
 
