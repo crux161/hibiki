@@ -77,7 +77,7 @@ pkg_check_modules(FFMPEG QUIET libavformat libavcodec libavutil libswscale libsw
 
 if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
   # macOS .app bundle (Hibiki.app) with the mangosteen icon.
-  add_executable(hibiki_sdl MACOSX_BUNDLE src/sdl_frontend.cpp)
+  add_executable(hibiki_sdl MACOSX_BUNDLE src/sdl_frontend.cpp src/osd.cpp)
   set_target_properties(hibiki_sdl PROPERTIES
     OUTPUT_NAME "Hibiki"
     MACOSX_BUNDLE_BUNDLE_NAME "Hibiki"

@@ -18,12 +18,41 @@ open ./Hibiki.app           # TV front-end (video + audio + HUD)
 
 On first run (or `--rescan` / `S`) the app scans the US ATSC channel plan,
 remembers the channels that lock (per-user `channels.txt`), and thereafter
-tunes / navigates only those. The on-screen display uses the bundled VCR OSD
-font (`res/font/`), styled like the Android app.
+tunes / navigates only those. It reopens on the last channel watched.
 
-Front-end controls: `Esc` quit / close menu, `Enter` channel menu,
-`←`/`→` or `PageUp`/`PageDown` channel, `↑`/`↓` volume (menu: navigate),
-`H` HUD, `F` fullscreen, `M` mute, `S` rescan.
+The on-screen display (`src/osd.{h,cpp}`) uses the bundled VCR OSD font
+(`res/font/`): a VHS-style playback HUD (channel, clock, volume, signal) and a
+blue VCR set-up menu. With no picture the screen falls back to VCR "blue back"
+with `NO SIGNAL` instead of exiting.
+
+Front-end controls (remote-style):
+
+| Key | Action |
+| --- | --- |
+| `Enter` / `Tab` | open MENU (in menus: set) |
+| `Esc` / `Backspace` | back / close menu (no menu: quit) |
+| `↑` `↓` | volume (in menus: select) |
+| `←` `→`, `PageUp` `PageDown` | channel down / up (in menus: adjust value) |
+| `0`–`9` | direct channel entry (commits after 2 digits, `Enter` or 2 s) |
+| `C` / `L` | channel list (`Space` toggles favourite) |
+| `G` | program guide (placeholder until PSIP is decoded) |
+| `A` | next audio track |
+| `Z` | screen scale: FIT / FULL / STRETCH |
+| `I` | show channel info banner |
+| `H` | persistent status HUD (signal meter + lock flags) |
+| `F` / `M` / `S` / `Q` | fullscreen / mute / auto channel scan / quit |
+
+MENU: channel list, program guide, sub channel (the RF channel's MPEG
+programs), audio track, screen scale, set up feature (HUD, scanlines, 12/24 h
+clock, volume, favourites-only surfing), set up channel (scan range 2-36 or
+2-51, auto scan, clear favourites) and about. Items marked `SOON` (guide data,
+closed captions, record/timer, parental lock) are placeholders for PadTV parity
+work. Preferences persist in `settings.txt` next to `channels.txt`.
+
+`Hibiki --demo` runs the UI without a tuner (colour bars, fake channel memory),
+and `--keys Return,Down,...` injects key presses at start-up. Combined with
+`--screenshot out.bmp` the demo saves a frame and exits, which is handy for
+checking OSD changes.
 
 **Firmware is not redistributable and is NOT in this repo.** Obtain the blobs
 separately (verify against the SHA-256 table below) and place them in `fw/`, or
