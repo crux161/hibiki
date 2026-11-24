@@ -7,6 +7,9 @@ build/
 # Firmware blobs are not redistributable; keep them out of the repo. Obtain them
 # separately and point the app at them (--fw / $HIBIKI_FW / per-user config dir).
 /fw/
+# Base64-packed copy of the same blobs (scripts/fw_bundle.py pack); encoding
+# does not change the license, so it stays out of git too.
+/fw_package/
 hibiki_*.log
 hibiki_*_*.log
 hibiki_run_*.log

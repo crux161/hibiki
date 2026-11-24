@@ -31,6 +31,25 @@ point the app at them with `--fw <path>` / `$HIBIKI_FW` /
 `~/Library/Application Support/hibiki/fw/`. The Eagle blob
 (`mbin_mxl_eagle_fw.bin`) is what the tuner loads at runtime.
 
+### Carrying the firmware as base64
+
+`scripts/fw_bundle.py` packs the two blobs needed to run — the Eagle runtime
+firmware and the PT930 FX2 bootstrap used by `wake_tuner.py` — into one
+SHA-256-pinned base64 bundle, and verifies/restores from either that bundle,
+a raw `fw/` tree, or a bare base64 snippet of one blob:
+
+```sh
+./scripts/fw_bundle.py pack                      # fw/ -> fw_package/hibiki-fw-b64.json
+./scripts/fw_bundle.py verify  --src fw_package  # decode + check size/SHA-256
+./scripts/fw_bundle.py install --src fw_package  # verify, then write into fw/
+./scripts/fw_bundle.py verify  --src fw          # check a raw tree in place
+./scripts/fw_bundle.py show    --src fw_package mbin_mxl_eagle_fw.bin > eagle.b64
+```
+
+`verify`/`install` also accept a lone `.b64` snippet or a directory of them.
+The bundle is only base64-encoded, so `fw_package/` is gitignored exactly like
+`fw/`: do not commit or redistribute it.
+
 ## Extracted Firmware Candidates
 
 Source tree: `MyGica-atsc/NewPad`
