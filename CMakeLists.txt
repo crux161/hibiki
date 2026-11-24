@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(hibiki LANGUAGES CXX)
+project(hibiki VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -76,7 +76,31 @@ pkg_check_modules(SDL3_TTF QUIET sdl3-ttf)
 pkg_check_modules(FFMPEG QUIET libavformat libavcodec libavutil libswscale libswresample)
 
 if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
-  add_executable(hibiki_sdl src/sdl_frontend.cpp)
+  # macOS .app bundle (Hibiki.app) with the mangosteen icon.
+  add_executable(hibiki_sdl MACOSX_BUNDLE src/sdl_frontend.cpp)
+  set_target_properties(hibiki_sdl PROPERTIES
+    OUTPUT_NAME "Hibiki"
+    MACOSX_BUNDLE_BUNDLE_NAME "Hibiki"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "org.hibiki.tv"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_ICON_FILE "mangosteen.icns"
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in")
+  set(HIBIKI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/res/icon/mangosteen.icns")
+  if(EXISTS "${HIBIKI_ICON}")
+    target_sources(hibiki_sdl PRIVATE "${HIBIKI_ICON}")
+    set_source_files_properties("${HIBIKI_ICON}" PROPERTIES
+      MACOSX_PACKAGE_LOCATION "Resources")
+  else()
+    message(WARNING "res/icon/mangosteen.icns missing; bundle will have no icon")
+  endif()
+  # VCR OSD font for the on-screen display / menu.
+  set(HIBIKI_FONT "${CMAKE_CURRENT_SOURCE_DIR}/res/font/VCR_OSD_MONO_1.001.ttf")
+  if(EXISTS "${HIBIKI_FONT}")
+    target_sources(hibiki_sdl PRIVATE "${HIBIKI_FONT}")
+    set_source_files_properties("${HIBIKI_FONT}" PROPERTIES
+      MACOSX_PACKAGE_LOCATION "Resources/font")
+  endif()
   target_include_directories(hibiki_sdl PRIVATE
     ${SDL3_INCLUDE_DIRS} ${SDL3_TTF_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIRS})
   target_link_directories(hibiki_sdl PRIVATE

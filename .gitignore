@@ -3,6 +3,10 @@
 build/
 /hibiki
 /hibiki_sdl
+/Hibiki.app
+# Firmware blobs are not redistributable; keep them out of the repo. Obtain them
+# separately and point the app at them (--fw / $HIBIKI_FW / per-user config dir).
+/fw/
 hibiki_*.log
 hibiki_*_*.log
 hibiki_run_*.log
@@ -14,3 +18,4 @@ resources/
 testing.py
 /developers/journal/
 /developers/
+res/glyphs/

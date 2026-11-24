@@ -1,7 +1,35 @@
 # Hibiki (響)
 
-Hibiki is a modern RE project dedicated to making the MyGiga USB-C ATSC tuner usable 
+Hibiki is a modern RE project dedicated to making the MyGiga USB-C ATSC tuner usable
 outside of the NewPadTVHD app for Android.
+
+## Build & run (macOS)
+
+Requires `libusb`, and for the TV front-end `sdl3`, `sdl3_ttf` and `ffmpeg`
+(Homebrew). The FX2 bridge firmware must already be loaded (`scripts/wake_tuner.py`).
+
+```sh
+./scripts/build.sh          # CMake -> ./hibiki (CLI) and ./Hibiki.app (TV front-end)
+./scripts/sign.sh           # ad-hoc codesign Hibiki.app (debug entitlements)
+./hibiki --scan             # CLI: sweep ATSC channels
+./hibiki --freq 201028615   # CLI: tune + serve MPEG-TS over HTTP (VLC)
+open ./Hibiki.app           # TV front-end (video + audio + HUD)
+```
+
+On first run (or `--rescan` / `S`) the app scans the US ATSC channel plan,
+remembers the channels that lock (per-user `channels.txt`), and thereafter
+tunes / navigates only those. The on-screen display uses the bundled VCR OSD
+font (`res/font/`), styled like the Android app.
+
+Front-end controls: `Esc` quit / close menu, `Enter` channel menu,
+`←`/`→` or `PageUp`/`PageDown` channel, `↑`/`↓` volume (menu: navigate),
+`H` HUD, `F` fullscreen, `M` mute, `S` rescan.
+
+**Firmware is not redistributable and is NOT in this repo.** Obtain the blobs
+separately (verify against the SHA-256 table below) and place them in `fw/`, or
+point the app at them with `--fw <path>` / `$HIBIKI_FW` /
+`~/Library/Application Support/hibiki/fw/`. The Eagle blob
+(`mbin_mxl_eagle_fw.bin`) is what the tuner loads at runtime.
 
 ## Extracted Firmware Candidates
 

@@ -233,10 +233,13 @@ struct Tuner::Reader {
 
 // -------- ATSC channel plan --------
 uint32_t atsc_channel_freq_hz(int ch) {
-    if (ch >= 2  && ch <= 4)  return 57028615u  + (uint32_t)(ch - 2)  * 6000000u;
-    if (ch >= 5  && ch <= 6)  return 79028615u  + (uint32_t)(ch - 5)  * 6000000u;
-    if (ch >= 7  && ch <= 13) return 177028615u + (uint32_t)(ch - 7)  * 6000000u;
-    if (ch >= 14 && ch <= 51) return 473028615u + (uint32_t)(ch - 14) * 6000000u;
+    // Channel center = lower edge + 3 MHz, per resources/atsc.pdf (the ATSC
+    // pilot sits ~0.309441 MHz above the lower edge, 2.690559 MHz below center).
+    // Using the exact center maximizes carrier-recovery margin on weak signals.
+    if (ch >= 2  && ch <= 4)  return 57000000u  + (uint32_t)(ch - 2)  * 6000000u;
+    if (ch >= 5  && ch <= 6)  return 79000000u  + (uint32_t)(ch - 5)  * 6000000u;
+    if (ch >= 7  && ch <= 13) return 177000000u + (uint32_t)(ch - 7)  * 6000000u;
+    if (ch >= 14 && ch <= 51) return 473000000u + (uint32_t)(ch - 14) * 6000000u;
     return 0;
 }
 
