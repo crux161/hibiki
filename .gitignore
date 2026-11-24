@@ -22,3 +22,6 @@ testing.py
 /developers/journal/
 /developers/
 res/glyphs/
+scripts/__pycache__/
+scripts/hibiki-fw-b64.json
+scripts/hibiki-fw-b64.json.sha256

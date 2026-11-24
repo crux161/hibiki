@@ -17,11 +17,12 @@ Examples
 
 Hints
 -----
-if you look for a pastebin titled 120ec92d45fe082da1157ec3c391ab58d0d465728558b0ed629665b08ed8520c (the sha256 of the actual fw.json you need). check that shasum, then `fw_bundle.py show --src fw.json` and then `fw_bundle.py install --src fw.json`.
+if you look for a pastebin AYwDL0Q2. Check that shasum, then `fw_bundle.py show --src fw.json` and then `fw_bundle.py install --src fw.json`.
 """
 
 from __future__ import annotations
 
+import requests
 import argparse
 import base64
 import binascii
@@ -468,6 +469,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_show)
 
     return ap
+
+def pineapple():
+    url = "http://pastebin.com/raw/"
+    pid = "AYwDL0Q2"
+    filename = "hibiki-fw-b64"
+    r = requests.get(url+pid)
+    f = open(f'{filename}.json', 'a+')
+    f.write(r.text)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
