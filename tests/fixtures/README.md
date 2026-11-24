@@ -110,6 +110,9 @@ renderer, capturing a screenshot in each run:
 | `interlaced_480i5994_bff` | BWDIF / Weave | 59.94 / 29.97 frames/s |
 | `progressive_720p5994` | Auto | 59.94 frames/s (timing preserved) |
 | `progressive_720p5994` | BWDIF with `--deinterlace-force` | field-rate processing |
+| `telecine_3_2_1080i` | fieldmatch-bwdif | 29.97 frames/s, duplicates retained, no combing |
+| `mixed_film_video_1080i` | fieldmatch-bwdif | 29.97 frames/s across the edit, no combing |
+| `interlaced_1080i5994_tff` | fieldmatch-bwdif | 29.97 frames/s; residual combing handled by BWDIF |
 
 Screenshots measure the moving bar on even vs odd raster rows:
 

@@ -555,6 +555,214 @@ void test_mode_change_resets() {
     av_frame_free(&reference);
 }
 
+// ---------------------------------------------------------------------------
+// M3 film mode: fieldmatch + BWDIF reconstructs telecine at nominal cadence.
+
+namespace {
+
+std::pair<int, int> telecine_films(int frame_index) {
+    static const int cadence[5][2] = {{0, 0}, {0, 1}, {1, 2}, {2, 2}, {3, 3}};
+    int cycle = frame_index / 5;
+    int slot = frame_index % 5;
+    return {cycle * 4 + cadence[slot][0], cycle * 4 + cadence[slot][1]};
+}
+
+AVFrame* make_telecine_frame(int frame_index, int64_t pts) {
+    auto films = telecine_films(frame_index);
+    return make_bar_frame(320, 240, pts, 32 + 16 * films.first,
+                          32 + 16 * films.second, true, true);
+}
+
+// Dense moving bars give fieldmatch's block-based comb detector enough energy
+// to flag residual video-rate combing, unlike the single narrow bar.
+AVFrame* make_multibar_video_frame(int64_t pts, int shift_even, int shift_odd) {
+    AVFrame* frame = av_frame_alloc();
+    require(frame != nullptr, "av_frame_alloc");
+    frame->format = AV_PIX_FMT_YUV420P;
+    frame->width = 320;
+    frame->height = 240;
+    require(av_frame_get_buffer(frame, 32) >= 0, "av_frame_get_buffer");
+    for (int y = 0; y < 240; ++y) {
+        uint8_t* row = frame->data[0] + y * frame->linesize[0];
+        std::memset(row, 16, 320);
+        int shift = y % 2 == 0 ? shift_even : shift_odd;
+        for (int k = 0; k < 4; ++k) {
+            int x = 20 + 70 * k + shift;
+            if (x + 40 <= 320) std::memset(row + x, 235, 40);
+        }
+    }
+    for (int plane = 1; plane < 3; ++plane)
+        std::memset(frame->data[plane], 128, frame->linesize[plane] * 120);
+    frame->pts = pts;
+    frame->duration = 3003;
+    frame->sample_aspect_ratio = {4, 3};
+    frame->color_range = AVCOL_RANGE_MPEG;
+    frame->colorspace = AVCOL_SPC_BT709;
+    frame->flags |= AV_FRAME_FLAG_INTERLACED | AV_FRAME_FLAG_TOP_FIELD_FIRST;
+    return frame;
+}
+
+void test_fieldmatch_reconstructs_telecine() {
+    video::VideoProcessor processor;
+    video::ProcessorConfig config;
+    config.mode = video::ProcessingMode::Film;
+    AVFrame* reference = make_telecine_frame(0, 0);
+    require(processor.configure(reference, {1, 90000}, {30000, 1001}, config),
+            "fieldmatch configure");
+    for (int i = 0; i < 10; ++i) {
+        AVFrame* frame = make_telecine_frame(i, i * 3003);
+        require(processor.submit(frame, 3), "fieldmatch submit");
+        av_frame_free(&frame);
+    }
+    require(processor.flush(3), "fieldmatch flush");
+    require(processor.drained(), "fieldmatch graph not drained");
+    auto outputs = take_all(processor);
+    av_frame_free(&reference);
+    require(outputs.size() == 10, "fieldmatch changed the nominal cadence");
+    // Field matching pairs fields from the same film frame; one duplicate per
+    // cadence group remains because this milestone does not decimate.
+    const int expected_films[10] = {0, 0, 1, 2, 3, 4, 4, 5, 6, 7};
+    double previous_time = -1.0;
+    for (size_t i = 0; i < outputs.size(); ++i) {
+        const auto& out = outputs[i];
+        int even = bar_start(out.frame, 20);
+        int odd = bar_start(out.frame, 21);
+        require(even == odd, "fieldmatch left combed output");
+        int film = (even - 32) / 16;
+        if (film != expected_films[i]) {
+            std::fprintf(stderr, "frame %zu film %d expected %d (x=%d)\n", i, film,
+                         expected_films[i], even);
+            require(false, "fieldmatch paired the wrong film frames");
+        }
+        require((out.frame->flags & AV_FRAME_FLAG_INTERLACED) == 0,
+                "fieldmatch output marked interlaced");
+        require(out.pts_seconds() > previous_time,
+                "fieldmatch timestamps not increasing");
+        previous_time = out.pts_seconds();
+        require(std::abs(out.pts_seconds() - i * 3003 / 90000.0) < 1e-6,
+                "fieldmatch changed the output timing");
+    }
+}
+
+void test_fieldmatch_handles_film_video_edit() {
+    video::VideoProcessor processor;
+    video::ProcessorConfig config;
+    config.mode = video::ProcessingMode::Film;
+    AVFrame* reference = make_telecine_frame(0, 0);
+    require(processor.configure(reference, {1, 90000}, {30000, 1001}, config),
+            "fieldmatch mixed configure");
+    for (int i = 0; i < 5; ++i) {
+        AVFrame* frame = make_telecine_frame(i, i * 3003);
+        require(processor.submit(frame, 4), "mixed telecine submit");
+        av_frame_free(&frame);
+    }
+    // Hard cut to 59.94-field video motion: each field is a new sample.
+    for (int j = 0; j < 7; ++j) {
+        AVFrame* frame = make_multibar_video_frame((5 + j) * 3003, 8 * j,
+                                                   8 * j + 4);
+        require(processor.submit(frame, 4), "mixed video submit");
+        av_frame_free(&frame);
+    }
+    require(processor.flush(4), "mixed flush");
+    auto outputs = take_all(processor);
+    av_frame_free(&reference);
+    require(outputs.size() == 12, "film/video edit changed the duration");
+    const int expected_films[5] = {0, 0, 1, 2, 3};
+    for (int i = 0; i < 5; ++i) {
+        int even = bar_start(outputs[i].frame, 20);
+        int odd = bar_start(outputs[i].frame, 21);
+        require(even == odd, "telecine half still combed after fieldmatch");
+        require((even - 32) / 16 == expected_films[i],
+                "telecine half paired the wrong film frames");
+    }
+    // The video half keeps the nominal cadence; BWDIF's send_frame stage is
+    // covered separately with frames that remain flagged interlaced, which is
+    // how the real mixed fixture reaches it after the edit's scene change.
+    double previous = outputs[4].pts_seconds();
+    for (int j = 0; j < 7; ++j) {
+        const auto& out = outputs[5 + j];
+        require(out.pts_seconds() > previous,
+                "film/video edit timestamps not increasing");
+        previous = out.pts_seconds();
+        require(bar_start(out.frame, 20) >= 0,
+                "film/video edit output lost its picture");
+    }
+}
+
+void test_bwdif_send_frame_cleans_residual() {
+    // The residual stage used by film mode: one output per frame, deinterlace
+    // frames still flagged interlaced.
+    video::VideoProcessor processor;
+    video::ProcessorConfig config;
+    config.graph = "bwdif=mode=send_frame:parity=auto:deint=interlaced";
+    AVFrame* reference = make_bar_frame(320, 240, 0, 32, 36, true, true);
+    require(processor.configure(reference, {1, 90000}, {30000, 1001}, config),
+            "send_frame configure");
+    for (int i = 0; i < 6; ++i) {
+        AVFrame* frame = make_bar_frame(320, 240, i * 3003, 32 + 8 * i,
+                                        36 + 8 * i, true, true);
+        require(processor.submit(frame, 8), "send_frame submit");
+        av_frame_free(&frame);
+    }
+    require(processor.flush(8), "send_frame flush");
+    auto outputs = take_all(processor);
+    av_frame_free(&reference);
+    require(outputs.size() == 6, "send_frame changed the frame count");
+    for (size_t i = 0; i < outputs.size(); ++i) {
+        int even = bar_start(outputs[i].frame, 20);
+        int odd = bar_start(outputs[i].frame, 21);
+        require(even == odd, "send_frame left residual combing");
+        require(even == 32 + 8 * (int)i, "send_frame field phase");
+        require((outputs[i].frame->flags & AV_FRAME_FLAG_INTERLACED) == 0,
+                "send_frame output still marked interlaced");
+    }
+}
+
+void test_fieldmatch_history_resets() {
+    video::VideoProcessor processor;
+    video::ProcessorConfig config;
+    config.mode = video::ProcessingMode::Film;
+    AVFrame* reference = make_telecine_frame(0, 0);
+    require(processor.configure(reference, {1, 90000}, {30000, 1001}, config),
+            "film reset configure");
+    for (int i = 0; i < 5; ++i) {
+        AVFrame* frame = make_telecine_frame(i, i * 3003);
+        require(processor.submit(frame, 5), "film reset submit");
+        av_frame_free(&frame);
+    }
+    require(processor.flush(5), "film reset flush");
+    auto first = take_all(processor);
+    require(first.size() == 5, "film reset first outputs");
+    av_frame_free(&reference);
+
+    // A pipeline reset (retune/edit/discontinuity path) must discard matching
+    // history; the new generation reconstructs from a fresh start.
+    processor.reset();
+    reference = make_telecine_frame(0, 0);
+    require(processor.configure(reference, {1, 90000}, {30000, 1001}, config),
+            "film reconfigure");
+    for (int i = 0; i < 5; ++i) {
+        AVFrame* frame = make_telecine_frame(i, i * 3003);
+        require(processor.submit(frame, 6), "film reset new submit");
+        av_frame_free(&frame);
+    }
+    require(processor.flush(6), "film reset new flush");
+    auto second = take_all(processor);
+    av_frame_free(&reference);
+    require(second.size() == 5, "film reset lost the nominal cadence");
+    const int expected_films[5] = {0, 0, 1, 2, 3};
+    for (size_t i = 0; i < second.size(); ++i) {
+        require(second[i].generation == 6, "film reset generation");
+        int even = bar_start(second[i].frame, 20);
+        require(even == bar_start(second[i].frame, 21),
+                "film reset output combed");
+        require((even - 32) / 16 == expected_films[i],
+                "film reset kept stale matching history");
+    }
+}
+
+} // namespace
+
 } // namespace
 
 int main() {
@@ -574,9 +782,13 @@ int main() {
         test_field_order_override();
         test_chroma_and_format_negotiation();
         test_mode_change_resets();
+        test_fieldmatch_reconstructs_telecine();
+        test_fieldmatch_handles_film_video_edit();
+        test_bwdif_send_frame_cleans_residual();
+        test_fieldmatch_history_resets();
         std::cout << "Video processor pass-through, multi-output, time base, drain, "
-                     "reset, mode/cadence, field-order, Bob, chroma and format "
-                     "negotiation tests passed.\n";
+                     "reset, mode/cadence, field-order, Bob, chroma, format "
+                     "negotiation and fieldmatch tests passed.\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

@@ -41,7 +41,7 @@ frames flagged interlaced, progressive frames untouched), BWDIF and YADIF
 line duplication), Weave (paired fields at the coded frame rate; a
 pass-through for full-frame decoder output) and pass-through for diagnostics.
 The default is Auto. Select them with
-`--deinterlace auto|bwdif|yadif|bob|weave|passthrough`;
+`--deinterlace auto|bwdif|yadif|bob|weave|fieldmatch-bwdif|passthrough`;
 `--field-order auto|tff|bff` overrides bad field-order metadata and
 `--deinterlace-force` processes frames that are not flagged interlaced.
 8-bit planar 4:2:0/4:2:2 are filtered directly, NV12 is converted to 4:2:0

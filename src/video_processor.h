@@ -26,11 +26,13 @@ extern "C" {
 
 namespace video {
 
-// CPU processing modes (M2). Auto applies BWDIF only to frames flagged
+// CPU processing modes (M2/M3). Auto applies BWDIF only to frames flagged
 // interlaced; explicit BWDIF/YADIF honour flags unless force is set; Bob
 // always reconstructs each field; Weave keeps paired fields at the coded frame
-// rate (a pass-through for full-frame decoder output).
-enum class ProcessingMode { PassThrough, Auto, Bwdif, Yadif, Bob, Weave };
+// rate (a pass-through for full-frame decoder output); Film runs fieldmatch
+// plus BWDIF to reconstruct telecined frames while keeping the nominal input
+// cadence (duplicates are retained; no decimation in this milestone).
+enum class ProcessingMode { PassThrough, Auto, Bwdif, Yadif, Bob, Weave, Film };
 enum class FieldOrder { Auto, TopFirst, BottomFirst };
 
 struct ProcessingSettings {

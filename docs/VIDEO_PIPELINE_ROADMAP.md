@@ -173,6 +173,12 @@ chroma, boundaries, frame counts, timestamps, and mode changes.
 
 ## M3 Add fieldmatch plus BWDIF
 
+> **Status 2026-11-24: implemented.** `--deinterlace fieldmatch-bwdif` runs
+> `fieldmatch=order=auto:combmatch=full` followed by BWDIF send_frame, keeps
+> the nominal cadence (no decimation, duplicates retained), and resets
+> matching history through the generation mechanism. Reference tests and the
+> recorded film-mode matrix are in [PLAYBACK_BASELINE.md](PLAYBACK_BASELINE.md).
+
 Expose a separate film mode with this initial graph:
 
 ```text

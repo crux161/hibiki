@@ -437,7 +437,7 @@ void usage(const char* prog) {
         "          [--dump-ts <file>] [--screenshot <bmp>] [--shot-after <ms>]\n"
         "          [--menu] [--keys <Key,Key,...>] [--demo] [--ts-file <capture.ts>]\n"
         "          [--stats] [--decoder auto|cpu] [--vsync on|off|adaptive]\n"
-        "          [--deinterlace auto|bwdif|yadif|bob|weave|passthrough]\n"
+        "          [--deinterlace auto|bwdif|yadif|bob|weave|fieldmatch-bwdif|passthrough]\n"
         "          [--field-order auto|tff|bff] [--deinterlace-force]\n"
         "          [--setup | --shortcuts | --about] [--help]\n"
         "  Enter menu; Esc back / quit; Left/Right or PgUp/PgDn channel;\n"
@@ -2315,9 +2315,12 @@ int main(int argc, char** argv) {
             else if (s == "YADIF") o.processing.mode = video::ProcessingMode::Yadif;
             else if (s == "BOB") o.processing.mode = video::ProcessingMode::Bob;
             else if (s == "WEAVE") o.processing.mode = video::ProcessingMode::Weave;
+            else if (s == "FIELDMATCH-BWDIF" || s == "FILM")
+                o.processing.mode = video::ProcessingMode::Film;
             else {
                 std::fprintf(stderr, "unsupported deinterlace mode '%s' "
-                                     "(auto|bwdif|yadif|bob|weave|passthrough)\n", v);
+                                     "(auto|bwdif|yadif|bob|weave|"
+                                     "fieldmatch-bwdif|passthrough)\n", v);
                 return 2;
             }
         }

@@ -278,3 +278,50 @@ Performance notes for later milestones: BWDIF costs ~1.3 ms/picture and YADIF
 progressive-to-field-rate case produces 119.88 field pictures but the dummy
 software presenter only sustains ~60 fps with heavy late-frame drops, so that
 mode is a correctness/diagnostic path until M4 measures real hardware.
+
+## M3 fieldmatch + BWDIF film mode
+
+Recorded 2026-11-24 after adding the explicit film mode
+(`--deinterlace fieldmatch-bwdif`, alias `film`). The graph is
+`fieldmatch=order=auto:combmatch=full,bwdif=mode=send_frame:parity=auto:
+deint=interlaced` (field-order override maps `order`/`parity`; force selects
+BWDIF `deint=all`). It keeps the nominal input cadence: field matching
+reconstructs frames from paired fields, one duplicate per cadence group is
+retained, and no inverse-telecine decimation is applied. Ordinary Auto stays
+on the M2 BWDIF policy.
+
+Method: the same headless replay run and mode matrix as M2, with three film
+cases. Recorded JSON:
+`tests/fixtures/reference/baseline_m3_apple-m4pro-headless.json`.
+
+| Fixture | Mode | out fps | parity offset (px) | expected | sink time base | tear |
+| --- | --- | --- | --- | --- | --- | --- |
+| telecine_3_2_1080i | fieldmatch-bwdif | 27.96 | +0.0 | +0.0 | 1/180000 | no |
+| mixed_film_video_1080i | fieldmatch-bwdif | 28.77 | +0.0 | +0.0 | 1/180000 | no |
+| interlaced_1080i5994_tff | fieldmatch-bwdif | 28.78 | +0.0 | +0.0 | 1/180000 | no |
+
+M3 exit criteria:
+
+* **Telecine fixtures reconstruct cleanly.** The playback output has the same
+  frame count as the input (60), every output frame carries matched top and
+  bottom fields (zero parity offset), and the film-index sequence derived from
+  the bar positions is `0,0,1,2,3,4,4,5,...`: one retained duplicate per
+  cadence group, no decimation. `video_processor_tests` compares the exact
+  reconstructed film sequence and timing for synthetic 3:2 cadence.
+* **Residual combing uses BWDIF.** Film mode on the pure video-rate 1080i
+  fixture and on the video half of the mixed edit shows zero combing on the
+  reference display path; the unit tests exercise BWDIF send_frame directly on
+  frames left flagged interlaced.
+* **Film/video transitions preserve duration and A/V sync.** The mixed
+  fixture keeps 60 outputs at the coded rate across the hard edit; replayed
+  with loop reopens, A/V offset stays below 0.02 s and the mode matrix
+  screenshot after the edit has zero parity offset.
+* **UI identifies the mode.** Diagnostics report `processing=fieldmatch-bwdif`
+  (video line, worker processing line, `I` panel and `--stats`); the docs
+  state that the nominal cadence is kept and duplicates are not removed.
+
+Cost note: fieldmatch adds roughly 9.5 ms/picture for 1080i in the headless
+software run (versus ~1.3 ms for BWDIF alone). Matching history is discarded
+by the same generation reset used for retunes, processing-method changes,
+format changes and timestamp discontinuities, so edits restart matching from
+a clean state.

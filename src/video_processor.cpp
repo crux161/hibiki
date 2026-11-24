@@ -21,6 +21,7 @@ const char* processing_mode_name(ProcessingMode mode) {
         case ProcessingMode::Yadif: return "yadif";
         case ProcessingMode::Bob: return "bob";
         case ProcessingMode::Weave: return "weave";
+        case ProcessingMode::Film: return "fieldmatch-bwdif";
         default: return "passthrough";
     }
 }
@@ -63,6 +64,16 @@ std::string mode_graph(const ProcessorConfig& config, int pixel_format,
         case ProcessingMode::Yadif:
             return prefix + "yadif=mode=send_field:parity=" +
                    parity_name(config.field_order) + ":deint=" + deint + sar_option;
+        case ProcessingMode::Film:
+            // Field matching reconstructs frames from paired fields; BWDIF
+            // send_frame then treats anything still combed (mixed film/video
+            // edits). Nominal cadence is kept, so duplicates remain until a
+            // separate decimation policy exists.
+            return prefix +
+                   "fieldmatch=order=" + parity_name(config.field_order) +
+                   ":combmatch=full,bwdif=mode=send_frame:parity=" +
+                   parity_name(config.field_order) + ":deint=" + deint +
+                   sar_option;
         case ProcessingMode::Bob:
             // Extract both fields (top field first as flagged, or as forced by
             // setfield above) into half-height pictures, then reconstruct

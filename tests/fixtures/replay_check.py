@@ -78,6 +78,20 @@ MODE_CASES = [
      "args": ["--deinterlace", "bwdif", "--deinterlace-force"],
      "mode": "bwdif", "force": True, "window": (1280, 720),
      "band": (216, 504), "parity": 0.0},
+    # M3 film mode: fieldmatch + BWDIF reconstructs telecine at the nominal
+    # cadence, treats the video half of a mixed edit, and cleans pure video.
+    {"fixture": "telecine_3_2_1080i",
+     "args": ["--deinterlace", "fieldmatch-bwdif"],
+     "mode": "fieldmatch-bwdif", "window": (1920, 1080),
+     "band": (324, 756), "parity": 0.0},
+    {"fixture": "mixed_film_video_1080i",
+     "args": ["--deinterlace", "fieldmatch-bwdif"],
+     "mode": "fieldmatch-bwdif", "window": (1920, 1080),
+     "band": (324, 756), "parity": 0.0},
+    {"fixture": "interlaced_1080i5994_tff",
+     "args": ["--deinterlace", "fieldmatch-bwdif"],
+     "mode": "fieldmatch-bwdif", "window": (1920, 1080),
+     "band": (324, 756), "parity": 0.0},
 ]
 
 
@@ -143,7 +157,7 @@ SUPPORTED_PIX_FMTS = {"yuv420p", "yuv422p", "nv12"}
 
 def effective_mode(fixture, mode):
     """The mode the worker can actually run for this fixture's pixel format."""
-    if mode in ("auto", "bwdif", "yadif", "bob") and \
+    if mode in ("auto", "bwdif", "yadif", "bob", "fieldmatch-bwdif") and \
             fixture["video"]["pix_fmt"] not in SUPPORTED_PIX_FMTS:
         return "passthrough"
     return mode
@@ -231,6 +245,12 @@ def check_fixture(fixture, parsed, mode="auto", force=False):
                    for s in stats_list):
             errors.append(f"{name}: field mode did not emit more outputs than "
                           "decoded frames")
+    if active_mode == "fieldmatch-bwdif":
+        # Field matching keeps the nominal cadence in this milestone: no
+        # decimation, duplicates retained.
+        if not any(abs(int(number(s, "processed")) - int(number(s, "decoded"))) <= 12
+                   for s in stats_list):
+            errors.append(f"{name}: film mode changed the nominal cadence")
 
     # `--ts-file` loops the capture, which reopens the stream and restarts the
     # per-open counters/rate windows; samples taken right after a loop mark can

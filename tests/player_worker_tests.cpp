@@ -215,6 +215,33 @@ void test_method_change_continues(SDL_Renderer* renderer) {
     player.close();
 }
 
+void test_film_mode_playback(SDL_Renderer* renderer) {
+    std::vector<uint8_t> ts = build_ts(30);
+    Source source{&ts};
+    player::Player player;
+    video::ProcessingSettings film{video::ProcessingMode::Film,
+                                   video::FieldOrder::Auto, false};
+    require(player.open(reader_for(source), renderer, -1, {},
+                        player::DecoderPreference::Auto, film),
+            "film-mode player open failed");
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(6);
+    while (!player.ended() && std::chrono::steady_clock::now() < deadline) {
+        player.service();
+        SDL_Delay(2);
+    }
+    require(player.ended(), "film-mode playback did not reach EOF");
+    const player::Stats& stats = player.stats();
+    require(stats.frames_processed >= 28, "film mode lost frames");
+    require(stats.frames_processed <= stats.frames_decoded + 8,
+            "film mode changed the nominal cadence");
+    require(stats.frames_shown > 0, "film mode presented nothing");
+    std::printf("[test] film mode: decoded=%llu processed=%llu shown=%llu\n",
+                (unsigned long long)stats.frames_decoded,
+                (unsigned long long)stats.frames_processed,
+                (unsigned long long)stats.frames_shown);
+    player.close();
+}
+
 void test_discontinuity_reset(SDL_Renderer* renderer) {
     std::vector<uint8_t> ts = build_ts(60, 30, 6);
     Source source{&ts};
@@ -263,6 +290,7 @@ int main() {
         test_playback_and_eof(renderer);
         test_multiple_outputs(renderer);
         test_method_change_continues(renderer);
+        test_film_mode_playback(renderer);
         test_discontinuity_reset(renderer);
         test_cancellation_while_blocked(renderer);
         SDL_DestroyRenderer(renderer);
