@@ -26,3 +26,5 @@ scripts/__pycache__/
 scripts/hibiki-fw-b64.json
 scripts/hibiki-fw-b64.json.sha256
 /hibiki-tv
+/tests/fixtures/generated/
+/tests/fixtures/__pycache__/

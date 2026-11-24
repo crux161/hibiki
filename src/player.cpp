@@ -29,6 +29,41 @@ constexpr size_t kFrameQueue = 6;
 constexpr double kDiscontinuity = 5.0;     // seconds
 
 uint64_t now_ns() { return SDL_GetTicksNS(); }
+
+std::string ratio_str(AVRational r) {
+    if (!r.num || !r.den) return "0:1";
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), "%d:%d", r.num, r.den);
+    return buf;
+}
+
+std::string rate_str(AVRational r) {
+    if (!r.num || !r.den) return "0/1";
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), "%d/%d", r.num, r.den);
+    return buf;
+}
+
+const char* field_order_name(AVFieldOrder order) {
+    switch (order) {
+        case AV_FIELD_PROGRESSIVE: return "progressive";
+        case AV_FIELD_TT: return "tt";
+        case AV_FIELD_BB: return "bb";
+        case AV_FIELD_TB: return "tb";
+        case AV_FIELD_BT: return "bt";
+        default: return "unknown";
+    }
+}
+
+const char* color_range_name(AVColorRange range) {
+    const char* name = av_color_range_name(range);
+    return name ? name : "unknown";
+}
+
+const char* color_space_name(AVColorSpace space) {
+    const char* name = av_color_space_name(space);
+    return name ? name : "unknown";
+}
 } // namespace
 
 int Player::avio_read(void* opaque, uint8_t* buf, int size) {
@@ -46,10 +81,12 @@ int Player::avio_read(void* opaque, uint8_t* buf, int size) {
     return AVERROR_EOF;
 }
 
-bool Player::open(ReadFn read, SDL_Renderer* ren, int program_id, PumpFn pump) {
+bool Player::open(ReadFn read, SDL_Renderer* ren, int program_id, PumpFn pump,
+                  DecoderPreference decoder) {
     close();
     read_ = std::move(read);
     ren_ = ren;
+    decoder_pref_ = decoder;
     stop_ = false;
     eof_ = false;
     last_data_ms_ = SDL_GetTicks();
@@ -106,6 +143,11 @@ void Player::close() {
     have_frame_ = false;
     eof_ = false;
     stats_ = Stats{};
+    info_ = VideoInfo{};
+    tff_frames_ = bff_frames_ = progressive_frames_ = 0;
+    observed_logged_.clear();
+    rate_start_ns_ = 0;
+    rate_decoded_ = rate_output_ = 0;
     reset_clock();
 }
 
@@ -165,18 +207,47 @@ void Player::flush_queues() {
 // ---------------------------------------------------------------------------
 bool Player::open_video(int idx) {
     const AVStream* st = fmt_->streams[idx];
-    const AVCodec* codec = avcodec_find_decoder(st->codecpar->codec_id);
+    const AVCodecParameters* cp = st->codecpar;
+    const AVCodec* codec = avcodec_find_decoder(cp->codec_id);
     if (!codec) return false;
     vdec_ = avcodec_alloc_context3(codec);
-    if (!vdec_ || avcodec_parameters_to_context(vdec_, st->codecpar) < 0 ||
+    if (!vdec_ || avcodec_parameters_to_context(vdec_, cp) < 0 ||
         avcodec_open2(vdec_, codec, nullptr) < 0) {
         avcodec_free_context(&vdec_);
         std::fprintf(stderr, "[-] video decoder open failed\n");
         return false;
     }
     vstream_ = idx;
-    sar_ = st->sample_aspect_ratio.num ? st->sample_aspect_ratio : st->codecpar->sample_aspect_ratio;
-    if (!width_) { width_ = st->codecpar->width; height_ = st->codecpar->height; }
+    sar_ = st->sample_aspect_ratio.num ? st->sample_aspect_ratio : cp->sample_aspect_ratio;
+    if (!width_) { width_ = cp->width; height_ = cp->height; }
+
+    // Static stream properties for the HUD and --stats.
+    info_ = VideoInfo{};
+    info_.codec = avcodec_get_name(cp->codec_id);
+    const char* profile = avcodec_profile_name(cp->codec_id, cp->profile);
+    info_.profile = profile ? profile : "unknown";
+    const char* pix_fmt = av_get_pix_fmt_name((AVPixelFormat)cp->format);
+    info_.pixel_format = pix_fmt ? pix_fmt : "unknown";
+    info_.width = cp->width;
+    info_.height = cp->height;
+    info_.active_width = cp->width;
+    info_.active_height = cp->height;
+    info_.sar = sar_.num && sar_.den ? ratio_str(sar_) : "1:1";
+    AVRational fps = st->avg_frame_rate.num ? st->avg_frame_rate : st->r_frame_rate;
+    info_.frame_rate = rate_str(fps);
+    info_.field_order = field_order_name(cp->field_order);
+    info_.color_range = color_range_name(cp->color_range);
+    info_.color_space = color_space_name(cp->color_space);
+    info_.decoder_requested = decoder_pref_ == DecoderPreference::Cpu ? "cpu" : "auto";
+    info_.decoder_active = "ffmpeg-cpu";
+    info_.processing = "bypass";
+    std::printf("[+] video: codec=%s profile=%s size=%dx%d pix_fmt=%s field=%s "
+                "range=%s space=%s sar=%s fps=%s decoder=%s>%s processing=%s\n",
+                info_.codec.c_str(), info_.profile.c_str(), info_.width, info_.height,
+                info_.pixel_format.c_str(), info_.field_order.c_str(),
+                info_.color_range.c_str(), info_.color_space.c_str(), info_.sar.c_str(),
+                info_.frame_rate.c_str(), info_.decoder_requested.c_str(),
+                info_.decoder_active.c_str(), info_.processing.c_str());
     return true;
 }
 
@@ -363,6 +434,7 @@ void Player::decode_audio_packet(AVPacket* pkt) {
 }
 
 void Player::upload(AVFrame* f) {
+    uint64_t start_ns = SDL_GetTicksNS();
     if (!vtex_ || f->width != width_ || f->height != height_) {
         // First frame, or the broadcaster changed resolution.
         if (vtex_) SDL_DestroyTexture(vtex_);
@@ -396,6 +468,48 @@ void Player::upload(AVFrame* f) {
     }
     have_frame_ = true;
     ++stats_.frames_shown;
+    ++rate_output_;
+    double upload_ms = (SDL_GetTicksNS() - start_ns) / 1e6;
+    stats_.upload_ms = stats_.upload_ms > 0
+                           ? stats_.upload_ms * 0.8 + upload_ms * 0.2
+                           : upload_ms;
+}
+
+void Player::note_frame_info(const AVFrame* f) {
+    if (f->width && f->height &&
+        (f->width != info_.active_width || f->height != info_.active_height)) {
+        std::printf("[*] video size changed: %dx%d -> %dx%d\n",
+                    info_.active_width, info_.active_height, f->width, f->height);
+        info_.active_width = f->width;
+        info_.active_height = f->height;
+        ++info_.size_changes;
+    }
+    if (f->flags & AV_FRAME_FLAG_INTERLACED) {
+        if (f->flags & AV_FRAME_FLAG_TOP_FIELD_FIRST) ++tff_frames_;
+        else ++bff_frames_;
+    } else {
+        ++progressive_frames_;
+    }
+    if (tff_frames_ && bff_frames_) info_.field_order_observed = "mixed";
+    else if (tff_frames_) info_.field_order_observed = "tt";
+    else if (bff_frames_) info_.field_order_observed = "bb";
+    else if (progressive_frames_) info_.field_order_observed = "progressive";
+    else info_.field_order_observed = "unknown";
+    if (info_.field_order_observed != observed_logged_) {
+        observed_logged_ = info_.field_order_observed;
+        std::printf("[*] field order observed: %s\n", observed_logged_.c_str());
+    }
+}
+
+void Player::update_rates() {
+    uint64_t now = SDL_GetTicksNS();
+    if (!rate_start_ns_) { rate_start_ns_ = now; return; }
+    double elapsed = (now - rate_start_ns_) / 1e9;
+    if (elapsed < 0.5) return;
+    stats_.decoded_fps = rate_decoded_ / elapsed;
+    stats_.output_fps = rate_output_ / elapsed;
+    rate_decoded_ = rate_output_ = 0;
+    rate_start_ns_ = now;
 }
 
 bool Player::service() {
@@ -426,6 +540,8 @@ bool Player::service() {
 
     // 2. Video: decode ahead into a small frame queue.
     const AVRational vtb = vstream_ >= 0 ? fmt_->streams[vstream_]->time_base : AVRational{1, 90000};
+    uint64_t decode_start_ns = SDL_GetTicksNS();
+    int decoded_now = 0;
     while (vdec_ && vfq_.size() < kFrameQueue) {
         AVPacket* p = pop(vq_);
         if (!p) break;
@@ -433,10 +549,20 @@ bool Player::service() {
             while (avcodec_receive_frame(vdec_, tmp_) == 0) {
                 AVFrame* f = av_frame_alloc();
                 av_frame_move_ref(f, tmp_);
+                note_frame_info(f);
                 vfq_.push_back(f);
+                ++stats_.frames_decoded;
+                ++rate_decoded_;
+                ++decoded_now;
             }
         }
         av_packet_free(&p);
+    }
+    if (decoded_now > 0) {
+        double ms = (SDL_GetTicksNS() - decode_start_ns) / 1e6 / decoded_now;
+        stats_.decode_ms = stats_.decode_ms > 0
+                               ? stats_.decode_ms * 0.8 + ms * 0.2
+                               : ms;
     }
 
     // 3. Show the frame whose time has come.
@@ -498,6 +624,19 @@ bool Player::service() {
         flush_queues();
         reset_clock();
     }
+
+    // Diagnostics: queued media and rolling decode/output rates.
+    stats_.queue_video_s = 0;
+    if (vfq_.size() >= 2) {
+        double first = pts_of(vfq_.front());
+        double last = pts_of(vfq_.back());
+        if (first >= 0 && last > first) stats_.queue_video_s = last - first;
+    }
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        stats_.queue_packets_s = std::max(pq_duration(vq_), pq_duration(aq_));
+    }
+    update_rates();
     return shown;
 }
 

@@ -1,0 +1,8077 @@
+{
+  "format": 1,
+  "description": "Synthetic playback fixtures for the ARM64 video pipeline roadmap (M0).",
+  "generator": "tests/fixtures/generate_fixtures.py",
+  "ffmpeg_version": "9.1",
+  "ffmpeg_pinned": "9.1",
+  "field_rate": "60000/1001",
+  "film_rate": "24000/1001",
+  "fixtures": [
+    {
+      "name": "progressive_720p5994",
+      "file": "progressive_720p5994.ts",
+      "kind": "bar",
+      "duration_frames": 120,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuv420p",
+        "field_order": "progressive",
+        "sar": "1:1",
+        "display_aspect_ratio": "16:9",
+        "avg_frame_rate": "60000/1001",
+        "r_frame_rate": "60000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          1502,
+          3004,
+          4505,
+          6007,
+          7508,
+          9010,
+          10511,
+          12013,
+          13514,
+          15016,
+          16517,
+          18019,
+          19520,
+          21022,
+          22523,
+          24025,
+          25526,
+          27028,
+          28529,
+          30031,
+          31532,
+          33034,
+          34535,
+          36037,
+          37538,
+          39040,
+          40541,
+          42043,
+          43544,
+          45046,
+          46547,
+          48049,
+          49550,
+          51052,
+          52553,
+          54055,
+          55556,
+          57058,
+          58559,
+          60061,
+          61562,
+          63064,
+          64565,
+          66067,
+          67568,
+          69070,
+          70571,
+          72073,
+          73574,
+          75076,
+          76577,
+          78079,
+          79580,
+          81082,
+          82583,
+          84085,
+          85586,
+          87088,
+          88589,
+          90091,
+          91592,
+          93094,
+          94595,
+          96097,
+          97598,
+          99100,
+          100601,
+          102103,
+          103604,
+          105106,
+          106607,
+          108109,
+          109610,
+          111112,
+          112613,
+          114115,
+          115616,
+          117118,
+          118619,
+          120121,
+          121622,
+          123124,
+          124625,
+          126127,
+          127628,
+          129130,
+          130631,
+          132133,
+          133634,
+          135136,
+          136637,
+          138139,
+          139640,
+          141142,
+          142643,
+          144145,
+          145646,
+          147148,
+          148649,
+          150151,
+          151652,
+          153154,
+          154655,
+          156157,
+          157658,
+          159160,
+          160661,
+          162163,
+          163664,
+          165166,
+          166667,
+          168169,
+          169670,
+          171172,
+          172673,
+          174175,
+          175676,
+          177178,
+          178679,
+          180181
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/60000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "content": {
+        "kind": "bar",
+        "note": null,
+        "bar_width": 32,
+        "band_rows": [
+          216,
+          503
+        ],
+        "sample_y": 360,
+        "interlaced_fields": false,
+        "field_order": "progressive",
+        "field_step_px": null,
+        "film_step_px": null,
+        "cut_frame": null,
+        "frames": [
+          {
+            "pts": 1502,
+            "even_x": 32,
+            "odd_x": 32,
+            "film": null
+          },
+          {
+            "pts": 3004,
+            "even_x": 40,
+            "odd_x": 40,
+            "film": null
+          },
+          {
+            "pts": 4505,
+            "even_x": 48,
+            "odd_x": 48,
+            "film": null
+          },
+          {
+            "pts": 6007,
+            "even_x": 56,
+            "odd_x": 56,
+            "film": null
+          },
+          {
+            "pts": 7508,
+            "even_x": 64,
+            "odd_x": 64,
+            "film": null
+          },
+          {
+            "pts": 9010,
+            "even_x": 72,
+            "odd_x": 72,
+            "film": null
+          },
+          {
+            "pts": 10511,
+            "even_x": 80,
+            "odd_x": 80,
+            "film": null
+          },
+          {
+            "pts": 12013,
+            "even_x": 88,
+            "odd_x": 88,
+            "film": null
+          },
+          {
+            "pts": 13514,
+            "even_x": 96,
+            "odd_x": 96,
+            "film": null
+          },
+          {
+            "pts": 15016,
+            "even_x": 104,
+            "odd_x": 104,
+            "film": null
+          },
+          {
+            "pts": 16517,
+            "even_x": 112,
+            "odd_x": 112,
+            "film": null
+          },
+          {
+            "pts": 18019,
+            "even_x": 120,
+            "odd_x": 120,
+            "film": null
+          },
+          {
+            "pts": 19520,
+            "even_x": 128,
+            "odd_x": 128,
+            "film": null
+          },
+          {
+            "pts": 21022,
+            "even_x": 136,
+            "odd_x": 136,
+            "film": null
+          },
+          {
+            "pts": 22523,
+            "even_x": 144,
+            "odd_x": 144,
+            "film": null
+          },
+          {
+            "pts": 24025,
+            "even_x": 152,
+            "odd_x": 152,
+            "film": null
+          },
+          {
+            "pts": 25526,
+            "even_x": 160,
+            "odd_x": 160,
+            "film": null
+          },
+          {
+            "pts": 27028,
+            "even_x": 168,
+            "odd_x": 168,
+            "film": null
+          },
+          {
+            "pts": 28529,
+            "even_x": 176,
+            "odd_x": 176,
+            "film": null
+          },
+          {
+            "pts": 30031,
+            "even_x": 184,
+            "odd_x": 184,
+            "film": null
+          },
+          {
+            "pts": 31532,
+            "even_x": 192,
+            "odd_x": 192,
+            "film": null
+          },
+          {
+            "pts": 33034,
+            "even_x": 200,
+            "odd_x": 200,
+            "film": null
+          },
+          {
+            "pts": 34535,
+            "even_x": 208,
+            "odd_x": 208,
+            "film": null
+          },
+          {
+            "pts": 36037,
+            "even_x": 216,
+            "odd_x": 216,
+            "film": null
+          },
+          {
+            "pts": 37538,
+            "even_x": 224,
+            "odd_x": 224,
+            "film": null
+          },
+          {
+            "pts": 39040,
+            "even_x": 232,
+            "odd_x": 232,
+            "film": null
+          },
+          {
+            "pts": 40541,
+            "even_x": 240,
+            "odd_x": 240,
+            "film": null
+          },
+          {
+            "pts": 42043,
+            "even_x": 248,
+            "odd_x": 248,
+            "film": null
+          },
+          {
+            "pts": 43544,
+            "even_x": 256,
+            "odd_x": 256,
+            "film": null
+          },
+          {
+            "pts": 45046,
+            "even_x": 264,
+            "odd_x": 264,
+            "film": null
+          },
+          {
+            "pts": 46547,
+            "even_x": 272,
+            "odd_x": 272,
+            "film": null
+          },
+          {
+            "pts": 48049,
+            "even_x": 280,
+            "odd_x": 280,
+            "film": null
+          },
+          {
+            "pts": 49550,
+            "even_x": 288,
+            "odd_x": 288,
+            "film": null
+          },
+          {
+            "pts": 51052,
+            "even_x": 296,
+            "odd_x": 296,
+            "film": null
+          },
+          {
+            "pts": 52553,
+            "even_x": 304,
+            "odd_x": 304,
+            "film": null
+          },
+          {
+            "pts": 54055,
+            "even_x": 312,
+            "odd_x": 312,
+            "film": null
+          },
+          {
+            "pts": 55556,
+            "even_x": 320,
+            "odd_x": 320,
+            "film": null
+          },
+          {
+            "pts": 57058,
+            "even_x": 328,
+            "odd_x": 328,
+            "film": null
+          },
+          {
+            "pts": 58559,
+            "even_x": 336,
+            "odd_x": 336,
+            "film": null
+          },
+          {
+            "pts": 60061,
+            "even_x": 344,
+            "odd_x": 344,
+            "film": null
+          },
+          {
+            "pts": 61562,
+            "even_x": 352,
+            "odd_x": 352,
+            "film": null
+          },
+          {
+            "pts": 63064,
+            "even_x": 360,
+            "odd_x": 360,
+            "film": null
+          },
+          {
+            "pts": 64565,
+            "even_x": 368,
+            "odd_x": 368,
+            "film": null
+          },
+          {
+            "pts": 66067,
+            "even_x": 376,
+            "odd_x": 376,
+            "film": null
+          },
+          {
+            "pts": 67568,
+            "even_x": 384,
+            "odd_x": 384,
+            "film": null
+          },
+          {
+            "pts": 69070,
+            "even_x": 392,
+            "odd_x": 392,
+            "film": null
+          },
+          {
+            "pts": 70571,
+            "even_x": 400,
+            "odd_x": 400,
+            "film": null
+          },
+          {
+            "pts": 72073,
+            "even_x": 408,
+            "odd_x": 408,
+            "film": null
+          },
+          {
+            "pts": 73574,
+            "even_x": 416,
+            "odd_x": 416,
+            "film": null
+          },
+          {
+            "pts": 75076,
+            "even_x": 424,
+            "odd_x": 424,
+            "film": null
+          },
+          {
+            "pts": 76577,
+            "even_x": 432,
+            "odd_x": 432,
+            "film": null
+          },
+          {
+            "pts": 78079,
+            "even_x": 440,
+            "odd_x": 440,
+            "film": null
+          },
+          {
+            "pts": 79580,
+            "even_x": 448,
+            "odd_x": 448,
+            "film": null
+          },
+          {
+            "pts": 81082,
+            "even_x": 456,
+            "odd_x": 456,
+            "film": null
+          },
+          {
+            "pts": 82583,
+            "even_x": 464,
+            "odd_x": 464,
+            "film": null
+          },
+          {
+            "pts": 84085,
+            "even_x": 472,
+            "odd_x": 472,
+            "film": null
+          },
+          {
+            "pts": 85586,
+            "even_x": 480,
+            "odd_x": 480,
+            "film": null
+          },
+          {
+            "pts": 87088,
+            "even_x": 488,
+            "odd_x": 488,
+            "film": null
+          },
+          {
+            "pts": 88589,
+            "even_x": 496,
+            "odd_x": 496,
+            "film": null
+          },
+          {
+            "pts": 90091,
+            "even_x": 504,
+            "odd_x": 504,
+            "film": null
+          },
+          {
+            "pts": 91592,
+            "even_x": 512,
+            "odd_x": 512,
+            "film": null
+          },
+          {
+            "pts": 93094,
+            "even_x": 520,
+            "odd_x": 520,
+            "film": null
+          },
+          {
+            "pts": 94595,
+            "even_x": 528,
+            "odd_x": 528,
+            "film": null
+          },
+          {
+            "pts": 96097,
+            "even_x": 536,
+            "odd_x": 536,
+            "film": null
+          },
+          {
+            "pts": 97598,
+            "even_x": 544,
+            "odd_x": 544,
+            "film": null
+          },
+          {
+            "pts": 99100,
+            "even_x": 552,
+            "odd_x": 552,
+            "film": null
+          },
+          {
+            "pts": 100601,
+            "even_x": 560,
+            "odd_x": 560,
+            "film": null
+          },
+          {
+            "pts": 102103,
+            "even_x": 568,
+            "odd_x": 568,
+            "film": null
+          },
+          {
+            "pts": 103604,
+            "even_x": 576,
+            "odd_x": 576,
+            "film": null
+          },
+          {
+            "pts": 105106,
+            "even_x": 584,
+            "odd_x": 584,
+            "film": null
+          },
+          {
+            "pts": 106607,
+            "even_x": 592,
+            "odd_x": 592,
+            "film": null
+          },
+          {
+            "pts": 108109,
+            "even_x": 600,
+            "odd_x": 600,
+            "film": null
+          },
+          {
+            "pts": 109610,
+            "even_x": 608,
+            "odd_x": 608,
+            "film": null
+          },
+          {
+            "pts": 111112,
+            "even_x": 616,
+            "odd_x": 616,
+            "film": null
+          },
+          {
+            "pts": 112613,
+            "even_x": 624,
+            "odd_x": 624,
+            "film": null
+          },
+          {
+            "pts": 114115,
+            "even_x": 632,
+            "odd_x": 632,
+            "film": null
+          },
+          {
+            "pts": 115616,
+            "even_x": 640,
+            "odd_x": 640,
+            "film": null
+          },
+          {
+            "pts": 117118,
+            "even_x": 648,
+            "odd_x": 648,
+            "film": null
+          },
+          {
+            "pts": 118619,
+            "even_x": 656,
+            "odd_x": 656,
+            "film": null
+          },
+          {
+            "pts": 120121,
+            "even_x": 664,
+            "odd_x": 664,
+            "film": null
+          },
+          {
+            "pts": 121622,
+            "even_x": 672,
+            "odd_x": 672,
+            "film": null
+          },
+          {
+            "pts": 123124,
+            "even_x": 680,
+            "odd_x": 680,
+            "film": null
+          },
+          {
+            "pts": 124625,
+            "even_x": 688,
+            "odd_x": 688,
+            "film": null
+          },
+          {
+            "pts": 126127,
+            "even_x": 696,
+            "odd_x": 696,
+            "film": null
+          },
+          {
+            "pts": 127628,
+            "even_x": 704,
+            "odd_x": 704,
+            "film": null
+          },
+          {
+            "pts": 129130,
+            "even_x": 712,
+            "odd_x": 712,
+            "film": null
+          },
+          {
+            "pts": 130631,
+            "even_x": 720,
+            "odd_x": 720,
+            "film": null
+          },
+          {
+            "pts": 132133,
+            "even_x": 728,
+            "odd_x": 728,
+            "film": null
+          },
+          {
+            "pts": 133634,
+            "even_x": 736,
+            "odd_x": 736,
+            "film": null
+          },
+          {
+            "pts": 135136,
+            "even_x": 744,
+            "odd_x": 744,
+            "film": null
+          },
+          {
+            "pts": 136637,
+            "even_x": 752,
+            "odd_x": 752,
+            "film": null
+          },
+          {
+            "pts": 138139,
+            "even_x": 760,
+            "odd_x": 760,
+            "film": null
+          },
+          {
+            "pts": 139640,
+            "even_x": 768,
+            "odd_x": 768,
+            "film": null
+          },
+          {
+            "pts": 141142,
+            "even_x": 776,
+            "odd_x": 776,
+            "film": null
+          },
+          {
+            "pts": 142643,
+            "even_x": 784,
+            "odd_x": 784,
+            "film": null
+          },
+          {
+            "pts": 144145,
+            "even_x": 792,
+            "odd_x": 792,
+            "film": null
+          },
+          {
+            "pts": 145646,
+            "even_x": 800,
+            "odd_x": 800,
+            "film": null
+          },
+          {
+            "pts": 147148,
+            "even_x": 808,
+            "odd_x": 808,
+            "film": null
+          },
+          {
+            "pts": 148649,
+            "even_x": 816,
+            "odd_x": 816,
+            "film": null
+          },
+          {
+            "pts": 150151,
+            "even_x": 824,
+            "odd_x": 824,
+            "film": null
+          },
+          {
+            "pts": 151652,
+            "even_x": 832,
+            "odd_x": 832,
+            "film": null
+          },
+          {
+            "pts": 153154,
+            "even_x": 840,
+            "odd_x": 840,
+            "film": null
+          },
+          {
+            "pts": 154655,
+            "even_x": 848,
+            "odd_x": 848,
+            "film": null
+          },
+          {
+            "pts": 156157,
+            "even_x": 856,
+            "odd_x": 856,
+            "film": null
+          },
+          {
+            "pts": 157658,
+            "even_x": 864,
+            "odd_x": 864,
+            "film": null
+          },
+          {
+            "pts": 159160,
+            "even_x": 872,
+            "odd_x": 872,
+            "film": null
+          },
+          {
+            "pts": 160661,
+            "even_x": 880,
+            "odd_x": 880,
+            "film": null
+          },
+          {
+            "pts": 162163,
+            "even_x": 888,
+            "odd_x": 888,
+            "film": null
+          },
+          {
+            "pts": 163664,
+            "even_x": 896,
+            "odd_x": 896,
+            "film": null
+          },
+          {
+            "pts": 165166,
+            "even_x": 904,
+            "odd_x": 904,
+            "film": null
+          },
+          {
+            "pts": 166667,
+            "even_x": 912,
+            "odd_x": 912,
+            "film": null
+          },
+          {
+            "pts": 168169,
+            "even_x": 920,
+            "odd_x": 920,
+            "film": null
+          },
+          {
+            "pts": 169670,
+            "even_x": 928,
+            "odd_x": 928,
+            "film": null
+          },
+          {
+            "pts": 171172,
+            "even_x": 936,
+            "odd_x": 936,
+            "film": null
+          },
+          {
+            "pts": 172673,
+            "even_x": 944,
+            "odd_x": 944,
+            "film": null
+          },
+          {
+            "pts": 174175,
+            "even_x": 952,
+            "odd_x": 952,
+            "film": null
+          },
+          {
+            "pts": 175676,
+            "even_x": 960,
+            "odd_x": 960,
+            "film": null
+          },
+          {
+            "pts": 177178,
+            "even_x": 968,
+            "odd_x": 968,
+            "film": null
+          },
+          {
+            "pts": 178679,
+            "even_x": 976,
+            "odd_x": 976,
+            "film": null
+          },
+          {
+            "pts": 180181,
+            "even_x": 984,
+            "odd_x": 984,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 219960,
+      "sha256": "9c2fee3430e11efc3c2904aa71100bec1250991c7d52f31d02796d1fd3658fee",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "1280x720",
+          "-r",
+          "60000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=2.502",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "6M",
+          "-maxrate",
+          "6M",
+          "-bufsize",
+          "12M",
+          "-bf",
+          "0",
+          "-g",
+          "30",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "progressive_720p5994.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/progressive_720p5994.framemd5"
+    },
+    {
+      "name": "interlaced_1080i5994_tff",
+      "file": "interlaced_1080i5994_tff.ts",
+      "kind": "bar",
+      "duration_frames": 60,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 1920,
+        "height": 1080,
+        "pix_fmt": "yuv420p",
+        "field_order": "tt",
+        "sar": "1:1",
+        "display_aspect_ratio": "16:9",
+        "avg_frame_rate": "30000/1001",
+        "r_frame_rate": "30000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          3003,
+          6006,
+          9009,
+          12012,
+          15015,
+          18018,
+          21021,
+          24024,
+          27027,
+          30030,
+          33033,
+          36036,
+          39039,
+          42042,
+          45045,
+          48048,
+          51051,
+          54054,
+          57057,
+          60060,
+          63063,
+          66066,
+          69069,
+          72072,
+          75075,
+          78078,
+          81081,
+          84084,
+          87087,
+          90090,
+          93093,
+          96096,
+          99099,
+          102102,
+          105105,
+          108108,
+          111111,
+          114114,
+          117117,
+          120120,
+          123123,
+          126126,
+          129129,
+          132132,
+          135135,
+          138138,
+          141141,
+          144144,
+          147147,
+          150150,
+          153153,
+          156156,
+          159159,
+          162162,
+          165165,
+          168168,
+          171171,
+          174174,
+          177177,
+          180180
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/30000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "content": {
+        "kind": "bar",
+        "note": null,
+        "bar_width": 32,
+        "band_rows": [
+          324,
+          756
+        ],
+        "sample_y": 540,
+        "interlaced_fields": true,
+        "field_order": "tt",
+        "field_step_px": 4,
+        "film_step_px": null,
+        "cut_frame": null,
+        "frames": [
+          {
+            "pts": 3003,
+            "even_x": 64,
+            "odd_x": 68,
+            "film": null
+          },
+          {
+            "pts": 6006,
+            "even_x": 72,
+            "odd_x": 76,
+            "film": null
+          },
+          {
+            "pts": 9009,
+            "even_x": 80,
+            "odd_x": 84,
+            "film": null
+          },
+          {
+            "pts": 12012,
+            "even_x": 88,
+            "odd_x": 92,
+            "film": null
+          },
+          {
+            "pts": 15015,
+            "even_x": 96,
+            "odd_x": 100,
+            "film": null
+          },
+          {
+            "pts": 18018,
+            "even_x": 104,
+            "odd_x": 108,
+            "film": null
+          },
+          {
+            "pts": 21021,
+            "even_x": 112,
+            "odd_x": 116,
+            "film": null
+          },
+          {
+            "pts": 24024,
+            "even_x": 120,
+            "odd_x": 124,
+            "film": null
+          },
+          {
+            "pts": 27027,
+            "even_x": 128,
+            "odd_x": 132,
+            "film": null
+          },
+          {
+            "pts": 30030,
+            "even_x": 136,
+            "odd_x": 140,
+            "film": null
+          },
+          {
+            "pts": 33033,
+            "even_x": 144,
+            "odd_x": 148,
+            "film": null
+          },
+          {
+            "pts": 36036,
+            "even_x": 152,
+            "odd_x": 156,
+            "film": null
+          },
+          {
+            "pts": 39039,
+            "even_x": 160,
+            "odd_x": 164,
+            "film": null
+          },
+          {
+            "pts": 42042,
+            "even_x": 168,
+            "odd_x": 172,
+            "film": null
+          },
+          {
+            "pts": 45045,
+            "even_x": 176,
+            "odd_x": 180,
+            "film": null
+          },
+          {
+            "pts": 48048,
+            "even_x": 184,
+            "odd_x": 188,
+            "film": null
+          },
+          {
+            "pts": 51051,
+            "even_x": 192,
+            "odd_x": 196,
+            "film": null
+          },
+          {
+            "pts": 54054,
+            "even_x": 200,
+            "odd_x": 204,
+            "film": null
+          },
+          {
+            "pts": 57057,
+            "even_x": 208,
+            "odd_x": 212,
+            "film": null
+          },
+          {
+            "pts": 60060,
+            "even_x": 216,
+            "odd_x": 220,
+            "film": null
+          },
+          {
+            "pts": 63063,
+            "even_x": 224,
+            "odd_x": 228,
+            "film": null
+          },
+          {
+            "pts": 66066,
+            "even_x": 232,
+            "odd_x": 236,
+            "film": null
+          },
+          {
+            "pts": 69069,
+            "even_x": 240,
+            "odd_x": 244,
+            "film": null
+          },
+          {
+            "pts": 72072,
+            "even_x": 248,
+            "odd_x": 252,
+            "film": null
+          },
+          {
+            "pts": 75075,
+            "even_x": 256,
+            "odd_x": 260,
+            "film": null
+          },
+          {
+            "pts": 78078,
+            "even_x": 264,
+            "odd_x": 268,
+            "film": null
+          },
+          {
+            "pts": 81081,
+            "even_x": 272,
+            "odd_x": 276,
+            "film": null
+          },
+          {
+            "pts": 84084,
+            "even_x": 280,
+            "odd_x": 284,
+            "film": null
+          },
+          {
+            "pts": 87087,
+            "even_x": 288,
+            "odd_x": 292,
+            "film": null
+          },
+          {
+            "pts": 90090,
+            "even_x": 296,
+            "odd_x": 300,
+            "film": null
+          },
+          {
+            "pts": 93093,
+            "even_x": 304,
+            "odd_x": 308,
+            "film": null
+          },
+          {
+            "pts": 96096,
+            "even_x": 312,
+            "odd_x": 316,
+            "film": null
+          },
+          {
+            "pts": 99099,
+            "even_x": 320,
+            "odd_x": 324,
+            "film": null
+          },
+          {
+            "pts": 102102,
+            "even_x": 328,
+            "odd_x": 332,
+            "film": null
+          },
+          {
+            "pts": 105105,
+            "even_x": 336,
+            "odd_x": 340,
+            "film": null
+          },
+          {
+            "pts": 108108,
+            "even_x": 344,
+            "odd_x": 348,
+            "film": null
+          },
+          {
+            "pts": 111111,
+            "even_x": 352,
+            "odd_x": 356,
+            "film": null
+          },
+          {
+            "pts": 114114,
+            "even_x": 360,
+            "odd_x": 364,
+            "film": null
+          },
+          {
+            "pts": 117117,
+            "even_x": 368,
+            "odd_x": 372,
+            "film": null
+          },
+          {
+            "pts": 120120,
+            "even_x": 376,
+            "odd_x": 380,
+            "film": null
+          },
+          {
+            "pts": 123123,
+            "even_x": 384,
+            "odd_x": 388,
+            "film": null
+          },
+          {
+            "pts": 126126,
+            "even_x": 392,
+            "odd_x": 396,
+            "film": null
+          },
+          {
+            "pts": 129129,
+            "even_x": 400,
+            "odd_x": 404,
+            "film": null
+          },
+          {
+            "pts": 132132,
+            "even_x": 408,
+            "odd_x": 412,
+            "film": null
+          },
+          {
+            "pts": 135135,
+            "even_x": 416,
+            "odd_x": 420,
+            "film": null
+          },
+          {
+            "pts": 138138,
+            "even_x": 424,
+            "odd_x": 428,
+            "film": null
+          },
+          {
+            "pts": 141141,
+            "even_x": 432,
+            "odd_x": 436,
+            "film": null
+          },
+          {
+            "pts": 144144,
+            "even_x": 440,
+            "odd_x": 444,
+            "film": null
+          },
+          {
+            "pts": 147147,
+            "even_x": 448,
+            "odd_x": 452,
+            "film": null
+          },
+          {
+            "pts": 150150,
+            "even_x": 456,
+            "odd_x": 460,
+            "film": null
+          },
+          {
+            "pts": 153153,
+            "even_x": 464,
+            "odd_x": 468,
+            "film": null
+          },
+          {
+            "pts": 156156,
+            "even_x": 472,
+            "odd_x": 476,
+            "film": null
+          },
+          {
+            "pts": 159159,
+            "even_x": 480,
+            "odd_x": 484,
+            "film": null
+          },
+          {
+            "pts": 162162,
+            "even_x": 488,
+            "odd_x": 492,
+            "film": null
+          },
+          {
+            "pts": 165165,
+            "even_x": 496,
+            "odd_x": 500,
+            "film": null
+          },
+          {
+            "pts": 168168,
+            "even_x": 504,
+            "odd_x": 508,
+            "film": null
+          },
+          {
+            "pts": 171171,
+            "even_x": 512,
+            "odd_x": 516,
+            "film": null
+          },
+          {
+            "pts": 174174,
+            "even_x": 520,
+            "odd_x": 524,
+            "film": null
+          },
+          {
+            "pts": 177177,
+            "even_x": 528,
+            "odd_x": 532,
+            "film": null
+          },
+          {
+            "pts": 180180,
+            "even_x": 536,
+            "odd_x": 540,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 354568,
+      "sha256": "9e4d06800d9fd1a4c06fdc9ac6e1e13e7cc7bede582cb4ce56b3a60e1270d6a2",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "1920x1080",
+          "-r",
+          "30000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=2.502",
+          "-vf",
+          "setfield=tff",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "8M",
+          "-maxrate",
+          "8M",
+          "-bufsize",
+          "16M",
+          "-bf",
+          "0",
+          "-g",
+          "15",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact+ildct+ilme",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "interlaced_1080i5994_tff.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/interlaced_1080i5994_tff.framemd5"
+    },
+    {
+      "name": "interlaced_480i5994_bff",
+      "file": "interlaced_480i5994_bff.ts",
+      "kind": "bar",
+      "duration_frames": 60,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 720,
+        "height": 480,
+        "pix_fmt": "yuv420p",
+        "field_order": "bb",
+        "sar": "8:9",
+        "display_aspect_ratio": "4:3",
+        "avg_frame_rate": "30000/1001",
+        "r_frame_rate": "30000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          3003,
+          6006,
+          9009,
+          12012,
+          15015,
+          18018,
+          21021,
+          24024,
+          27027,
+          30030,
+          33033,
+          36036,
+          39039,
+          42042,
+          45045,
+          48048,
+          51051,
+          54054,
+          57057,
+          60060,
+          63063,
+          66066,
+          69069,
+          72072,
+          75075,
+          78078,
+          81081,
+          84084,
+          87087,
+          90090,
+          93093,
+          96096,
+          99099,
+          102102,
+          105105,
+          108108,
+          111111,
+          114114,
+          117117,
+          120120,
+          123123,
+          126126,
+          129129,
+          132132,
+          135135,
+          138138,
+          141141,
+          144144,
+          147147,
+          150150,
+          153153,
+          156156,
+          159159,
+          162162,
+          165165,
+          168168,
+          171171,
+          174174,
+          177177,
+          180180
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/30000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "content": {
+        "kind": "bar",
+        "note": null,
+        "bar_width": 20,
+        "band_rows": [
+          144,
+          336
+        ],
+        "sample_y": 240,
+        "interlaced_fields": true,
+        "field_order": "bb",
+        "field_step_px": 2,
+        "film_step_px": null,
+        "cut_frame": null,
+        "frames": [
+          {
+            "pts": 3003,
+            "even_x": 34,
+            "odd_x": 32,
+            "film": null
+          },
+          {
+            "pts": 6006,
+            "even_x": 38,
+            "odd_x": 36,
+            "film": null
+          },
+          {
+            "pts": 9009,
+            "even_x": 42,
+            "odd_x": 40,
+            "film": null
+          },
+          {
+            "pts": 12012,
+            "even_x": 46,
+            "odd_x": 44,
+            "film": null
+          },
+          {
+            "pts": 15015,
+            "even_x": 50,
+            "odd_x": 48,
+            "film": null
+          },
+          {
+            "pts": 18018,
+            "even_x": 54,
+            "odd_x": 52,
+            "film": null
+          },
+          {
+            "pts": 21021,
+            "even_x": 58,
+            "odd_x": 56,
+            "film": null
+          },
+          {
+            "pts": 24024,
+            "even_x": 62,
+            "odd_x": 60,
+            "film": null
+          },
+          {
+            "pts": 27027,
+            "even_x": 66,
+            "odd_x": 64,
+            "film": null
+          },
+          {
+            "pts": 30030,
+            "even_x": 70,
+            "odd_x": 68,
+            "film": null
+          },
+          {
+            "pts": 33033,
+            "even_x": 74,
+            "odd_x": 72,
+            "film": null
+          },
+          {
+            "pts": 36036,
+            "even_x": 78,
+            "odd_x": 76,
+            "film": null
+          },
+          {
+            "pts": 39039,
+            "even_x": 82,
+            "odd_x": 80,
+            "film": null
+          },
+          {
+            "pts": 42042,
+            "even_x": 86,
+            "odd_x": 84,
+            "film": null
+          },
+          {
+            "pts": 45045,
+            "even_x": 90,
+            "odd_x": 88,
+            "film": null
+          },
+          {
+            "pts": 48048,
+            "even_x": 94,
+            "odd_x": 92,
+            "film": null
+          },
+          {
+            "pts": 51051,
+            "even_x": 98,
+            "odd_x": 96,
+            "film": null
+          },
+          {
+            "pts": 54054,
+            "even_x": 102,
+            "odd_x": 100,
+            "film": null
+          },
+          {
+            "pts": 57057,
+            "even_x": 106,
+            "odd_x": 104,
+            "film": null
+          },
+          {
+            "pts": 60060,
+            "even_x": 110,
+            "odd_x": 108,
+            "film": null
+          },
+          {
+            "pts": 63063,
+            "even_x": 114,
+            "odd_x": 112,
+            "film": null
+          },
+          {
+            "pts": 66066,
+            "even_x": 118,
+            "odd_x": 116,
+            "film": null
+          },
+          {
+            "pts": 69069,
+            "even_x": 122,
+            "odd_x": 120,
+            "film": null
+          },
+          {
+            "pts": 72072,
+            "even_x": 126,
+            "odd_x": 124,
+            "film": null
+          },
+          {
+            "pts": 75075,
+            "even_x": 130,
+            "odd_x": 128,
+            "film": null
+          },
+          {
+            "pts": 78078,
+            "even_x": 134,
+            "odd_x": 132,
+            "film": null
+          },
+          {
+            "pts": 81081,
+            "even_x": 138,
+            "odd_x": 136,
+            "film": null
+          },
+          {
+            "pts": 84084,
+            "even_x": 142,
+            "odd_x": 140,
+            "film": null
+          },
+          {
+            "pts": 87087,
+            "even_x": 146,
+            "odd_x": 144,
+            "film": null
+          },
+          {
+            "pts": 90090,
+            "even_x": 150,
+            "odd_x": 148,
+            "film": null
+          },
+          {
+            "pts": 93093,
+            "even_x": 154,
+            "odd_x": 152,
+            "film": null
+          },
+          {
+            "pts": 96096,
+            "even_x": 158,
+            "odd_x": 156,
+            "film": null
+          },
+          {
+            "pts": 99099,
+            "even_x": 162,
+            "odd_x": 160,
+            "film": null
+          },
+          {
+            "pts": 102102,
+            "even_x": 166,
+            "odd_x": 164,
+            "film": null
+          },
+          {
+            "pts": 105105,
+            "even_x": 170,
+            "odd_x": 168,
+            "film": null
+          },
+          {
+            "pts": 108108,
+            "even_x": 174,
+            "odd_x": 172,
+            "film": null
+          },
+          {
+            "pts": 111111,
+            "even_x": 178,
+            "odd_x": 176,
+            "film": null
+          },
+          {
+            "pts": 114114,
+            "even_x": 182,
+            "odd_x": 180,
+            "film": null
+          },
+          {
+            "pts": 117117,
+            "even_x": 186,
+            "odd_x": 184,
+            "film": null
+          },
+          {
+            "pts": 120120,
+            "even_x": 190,
+            "odd_x": 188,
+            "film": null
+          },
+          {
+            "pts": 123123,
+            "even_x": 194,
+            "odd_x": 192,
+            "film": null
+          },
+          {
+            "pts": 126126,
+            "even_x": 198,
+            "odd_x": 196,
+            "film": null
+          },
+          {
+            "pts": 129129,
+            "even_x": 202,
+            "odd_x": 200,
+            "film": null
+          },
+          {
+            "pts": 132132,
+            "even_x": 206,
+            "odd_x": 204,
+            "film": null
+          },
+          {
+            "pts": 135135,
+            "even_x": 210,
+            "odd_x": 208,
+            "film": null
+          },
+          {
+            "pts": 138138,
+            "even_x": 214,
+            "odd_x": 212,
+            "film": null
+          },
+          {
+            "pts": 141141,
+            "even_x": 218,
+            "odd_x": 216,
+            "film": null
+          },
+          {
+            "pts": 144144,
+            "even_x": 222,
+            "odd_x": 220,
+            "film": null
+          },
+          {
+            "pts": 147147,
+            "even_x": 226,
+            "odd_x": 224,
+            "film": null
+          },
+          {
+            "pts": 150150,
+            "even_x": 230,
+            "odd_x": 228,
+            "film": null
+          },
+          {
+            "pts": 153153,
+            "even_x": 234,
+            "odd_x": 232,
+            "film": null
+          },
+          {
+            "pts": 156156,
+            "even_x": 238,
+            "odd_x": 236,
+            "film": null
+          },
+          {
+            "pts": 159159,
+            "even_x": 242,
+            "odd_x": 240,
+            "film": null
+          },
+          {
+            "pts": 162162,
+            "even_x": 246,
+            "odd_x": 244,
+            "film": null
+          },
+          {
+            "pts": 165165,
+            "even_x": 250,
+            "odd_x": 248,
+            "film": null
+          },
+          {
+            "pts": 168168,
+            "even_x": 254,
+            "odd_x": 252,
+            "film": null
+          },
+          {
+            "pts": 171171,
+            "even_x": 258,
+            "odd_x": 256,
+            "film": null
+          },
+          {
+            "pts": 174174,
+            "even_x": 262,
+            "odd_x": 260,
+            "film": null
+          },
+          {
+            "pts": 177177,
+            "even_x": 266,
+            "odd_x": 264,
+            "film": null
+          },
+          {
+            "pts": 180180,
+            "even_x": 270,
+            "odd_x": 268,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 127276,
+      "sha256": "15c0c7bf95dc97714c494acedf84ff09f43e50c3a9c4a3e62d8cd5e242428448",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "720x480",
+          "-r",
+          "30000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=2.502",
+          "-vf",
+          "setfield=bff",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "3M",
+          "-maxrate",
+          "3M",
+          "-bufsize",
+          "6M",
+          "-bf",
+          "0",
+          "-g",
+          "15",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact+ildct+ilme",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-aspect",
+          "4:3",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "interlaced_480i5994_bff.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/interlaced_480i5994_bff.framemd5"
+    },
+    {
+      "name": "telecine_3_2_1080i",
+      "file": "telecine_3_2_1080i.ts",
+      "kind": "bar",
+      "duration_frames": 60,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 1920,
+        "height": 1080,
+        "pix_fmt": "yuv420p",
+        "field_order": "tt",
+        "sar": "1:1",
+        "display_aspect_ratio": "16:9",
+        "avg_frame_rate": "30000/1001",
+        "r_frame_rate": "30000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          3003,
+          6006,
+          9009,
+          12012,
+          15015,
+          18018,
+          21021,
+          24024,
+          27027,
+          30030,
+          33033,
+          36036,
+          39039,
+          42042,
+          45045,
+          48048,
+          51051,
+          54054,
+          57057,
+          60060,
+          63063,
+          66066,
+          69069,
+          72072,
+          75075,
+          78078,
+          81081,
+          84084,
+          87087,
+          90090,
+          93093,
+          96096,
+          99099,
+          102102,
+          105105,
+          108108,
+          111111,
+          114114,
+          117117,
+          120120,
+          123123,
+          126126,
+          129129,
+          132132,
+          135135,
+          138138,
+          141141,
+          144144,
+          147147,
+          150150,
+          153153,
+          156156,
+          159159,
+          162162,
+          165165,
+          168168,
+          171171,
+          174174,
+          177177,
+          180180
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/30000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "content": {
+        "kind": "bar",
+        "note": null,
+        "bar_width": 32,
+        "band_rows": [
+          324,
+          756
+        ],
+        "sample_y": 540,
+        "interlaced_fields": true,
+        "field_order": "tt",
+        "field_step_px": null,
+        "film_step_px": 16,
+        "cut_frame": null,
+        "frames": [
+          {
+            "pts": 3003,
+            "even_x": 64,
+            "odd_x": 64,
+            "film": [
+              0,
+              0
+            ]
+          },
+          {
+            "pts": 6006,
+            "even_x": 64,
+            "odd_x": 80,
+            "film": [
+              0,
+              1
+            ]
+          },
+          {
+            "pts": 9009,
+            "even_x": 80,
+            "odd_x": 96,
+            "film": [
+              1,
+              2
+            ]
+          },
+          {
+            "pts": 12012,
+            "even_x": 96,
+            "odd_x": 96,
+            "film": [
+              2,
+              2
+            ]
+          },
+          {
+            "pts": 15015,
+            "even_x": 112,
+            "odd_x": 112,
+            "film": [
+              3,
+              3
+            ]
+          },
+          {
+            "pts": 18018,
+            "even_x": 128,
+            "odd_x": 128,
+            "film": [
+              4,
+              4
+            ]
+          },
+          {
+            "pts": 21021,
+            "even_x": 128,
+            "odd_x": 144,
+            "film": [
+              4,
+              5
+            ]
+          },
+          {
+            "pts": 24024,
+            "even_x": 144,
+            "odd_x": 160,
+            "film": [
+              5,
+              6
+            ]
+          },
+          {
+            "pts": 27027,
+            "even_x": 160,
+            "odd_x": 160,
+            "film": [
+              6,
+              6
+            ]
+          },
+          {
+            "pts": 30030,
+            "even_x": 176,
+            "odd_x": 176,
+            "film": [
+              7,
+              7
+            ]
+          },
+          {
+            "pts": 33033,
+            "even_x": 192,
+            "odd_x": 192,
+            "film": [
+              8,
+              8
+            ]
+          },
+          {
+            "pts": 36036,
+            "even_x": 192,
+            "odd_x": 208,
+            "film": [
+              8,
+              9
+            ]
+          },
+          {
+            "pts": 39039,
+            "even_x": 208,
+            "odd_x": 224,
+            "film": [
+              9,
+              10
+            ]
+          },
+          {
+            "pts": 42042,
+            "even_x": 224,
+            "odd_x": 224,
+            "film": [
+              10,
+              10
+            ]
+          },
+          {
+            "pts": 45045,
+            "even_x": 240,
+            "odd_x": 240,
+            "film": [
+              11,
+              11
+            ]
+          },
+          {
+            "pts": 48048,
+            "even_x": 256,
+            "odd_x": 256,
+            "film": [
+              12,
+              12
+            ]
+          },
+          {
+            "pts": 51051,
+            "even_x": 256,
+            "odd_x": 272,
+            "film": [
+              12,
+              13
+            ]
+          },
+          {
+            "pts": 54054,
+            "even_x": 272,
+            "odd_x": 288,
+            "film": [
+              13,
+              14
+            ]
+          },
+          {
+            "pts": 57057,
+            "even_x": 288,
+            "odd_x": 288,
+            "film": [
+              14,
+              14
+            ]
+          },
+          {
+            "pts": 60060,
+            "even_x": 304,
+            "odd_x": 304,
+            "film": [
+              15,
+              15
+            ]
+          },
+          {
+            "pts": 63063,
+            "even_x": 320,
+            "odd_x": 320,
+            "film": [
+              16,
+              16
+            ]
+          },
+          {
+            "pts": 66066,
+            "even_x": 320,
+            "odd_x": 336,
+            "film": [
+              16,
+              17
+            ]
+          },
+          {
+            "pts": 69069,
+            "even_x": 336,
+            "odd_x": 352,
+            "film": [
+              17,
+              18
+            ]
+          },
+          {
+            "pts": 72072,
+            "even_x": 352,
+            "odd_x": 352,
+            "film": [
+              18,
+              18
+            ]
+          },
+          {
+            "pts": 75075,
+            "even_x": 368,
+            "odd_x": 368,
+            "film": [
+              19,
+              19
+            ]
+          },
+          {
+            "pts": 78078,
+            "even_x": 384,
+            "odd_x": 384,
+            "film": [
+              20,
+              20
+            ]
+          },
+          {
+            "pts": 81081,
+            "even_x": 384,
+            "odd_x": 400,
+            "film": [
+              20,
+              21
+            ]
+          },
+          {
+            "pts": 84084,
+            "even_x": 400,
+            "odd_x": 416,
+            "film": [
+              21,
+              22
+            ]
+          },
+          {
+            "pts": 87087,
+            "even_x": 416,
+            "odd_x": 416,
+            "film": [
+              22,
+              22
+            ]
+          },
+          {
+            "pts": 90090,
+            "even_x": 432,
+            "odd_x": 432,
+            "film": [
+              23,
+              23
+            ]
+          },
+          {
+            "pts": 93093,
+            "even_x": 448,
+            "odd_x": 448,
+            "film": [
+              24,
+              24
+            ]
+          },
+          {
+            "pts": 96096,
+            "even_x": 448,
+            "odd_x": 464,
+            "film": [
+              24,
+              25
+            ]
+          },
+          {
+            "pts": 99099,
+            "even_x": 464,
+            "odd_x": 480,
+            "film": [
+              25,
+              26
+            ]
+          },
+          {
+            "pts": 102102,
+            "even_x": 480,
+            "odd_x": 480,
+            "film": [
+              26,
+              26
+            ]
+          },
+          {
+            "pts": 105105,
+            "even_x": 496,
+            "odd_x": 496,
+            "film": [
+              27,
+              27
+            ]
+          },
+          {
+            "pts": 108108,
+            "even_x": 512,
+            "odd_x": 512,
+            "film": [
+              28,
+              28
+            ]
+          },
+          {
+            "pts": 111111,
+            "even_x": 512,
+            "odd_x": 528,
+            "film": [
+              28,
+              29
+            ]
+          },
+          {
+            "pts": 114114,
+            "even_x": 528,
+            "odd_x": 544,
+            "film": [
+              29,
+              30
+            ]
+          },
+          {
+            "pts": 117117,
+            "even_x": 544,
+            "odd_x": 544,
+            "film": [
+              30,
+              30
+            ]
+          },
+          {
+            "pts": 120120,
+            "even_x": 560,
+            "odd_x": 560,
+            "film": [
+              31,
+              31
+            ]
+          },
+          {
+            "pts": 123123,
+            "even_x": 576,
+            "odd_x": 576,
+            "film": [
+              32,
+              32
+            ]
+          },
+          {
+            "pts": 126126,
+            "even_x": 576,
+            "odd_x": 592,
+            "film": [
+              32,
+              33
+            ]
+          },
+          {
+            "pts": 129129,
+            "even_x": 592,
+            "odd_x": 608,
+            "film": [
+              33,
+              34
+            ]
+          },
+          {
+            "pts": 132132,
+            "even_x": 608,
+            "odd_x": 608,
+            "film": [
+              34,
+              34
+            ]
+          },
+          {
+            "pts": 135135,
+            "even_x": 624,
+            "odd_x": 624,
+            "film": [
+              35,
+              35
+            ]
+          },
+          {
+            "pts": 138138,
+            "even_x": 640,
+            "odd_x": 640,
+            "film": [
+              36,
+              36
+            ]
+          },
+          {
+            "pts": 141141,
+            "even_x": 640,
+            "odd_x": 656,
+            "film": [
+              36,
+              37
+            ]
+          },
+          {
+            "pts": 144144,
+            "even_x": 656,
+            "odd_x": 672,
+            "film": [
+              37,
+              38
+            ]
+          },
+          {
+            "pts": 147147,
+            "even_x": 672,
+            "odd_x": 672,
+            "film": [
+              38,
+              38
+            ]
+          },
+          {
+            "pts": 150150,
+            "even_x": 688,
+            "odd_x": 688,
+            "film": [
+              39,
+              39
+            ]
+          },
+          {
+            "pts": 153153,
+            "even_x": 704,
+            "odd_x": 704,
+            "film": [
+              40,
+              40
+            ]
+          },
+          {
+            "pts": 156156,
+            "even_x": 704,
+            "odd_x": 720,
+            "film": [
+              40,
+              41
+            ]
+          },
+          {
+            "pts": 159159,
+            "even_x": 720,
+            "odd_x": 736,
+            "film": [
+              41,
+              42
+            ]
+          },
+          {
+            "pts": 162162,
+            "even_x": 736,
+            "odd_x": 736,
+            "film": [
+              42,
+              42
+            ]
+          },
+          {
+            "pts": 165165,
+            "even_x": 752,
+            "odd_x": 752,
+            "film": [
+              43,
+              43
+            ]
+          },
+          {
+            "pts": 168168,
+            "even_x": 768,
+            "odd_x": 768,
+            "film": [
+              44,
+              44
+            ]
+          },
+          {
+            "pts": 171171,
+            "even_x": 768,
+            "odd_x": 784,
+            "film": [
+              44,
+              45
+            ]
+          },
+          {
+            "pts": 174174,
+            "even_x": 784,
+            "odd_x": 800,
+            "film": [
+              45,
+              46
+            ]
+          },
+          {
+            "pts": 177177,
+            "even_x": 800,
+            "odd_x": 800,
+            "film": [
+              46,
+              46
+            ]
+          },
+          {
+            "pts": 180180,
+            "even_x": 816,
+            "odd_x": 816,
+            "film": [
+              47,
+              47
+            ]
+          }
+        ]
+      },
+      "bytes": 278616,
+      "sha256": "0967d6d0fcce8bd1582ad7cc0d879cbbf1e97f00c90a860ff3dc91db0c2f2eef",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "1920x1080",
+          "-r",
+          "30000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=2.502",
+          "-vf",
+          "setfield=tff",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "8M",
+          "-maxrate",
+          "8M",
+          "-bufsize",
+          "16M",
+          "-bf",
+          "0",
+          "-g",
+          "15",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact+ildct+ilme",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "telecine_3_2_1080i.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/telecine_3_2_1080i.framemd5"
+    },
+    {
+      "name": "mixed_film_video_1080i",
+      "file": "mixed_film_video_1080i.ts",
+      "kind": "bar",
+      "duration_frames": 60,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 1920,
+        "height": 1080,
+        "pix_fmt": "yuv420p",
+        "field_order": "tt",
+        "sar": "1:1",
+        "display_aspect_ratio": "16:9",
+        "avg_frame_rate": "30000/1001",
+        "r_frame_rate": "30000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          3003,
+          6006,
+          9009,
+          12012,
+          15015,
+          18018,
+          21021,
+          24024,
+          27027,
+          30030,
+          33033,
+          36036,
+          39039,
+          42042,
+          45045,
+          48048,
+          51051,
+          54054,
+          57057,
+          60060,
+          63063,
+          66066,
+          69069,
+          72072,
+          75075,
+          78078,
+          81081,
+          84084,
+          87087,
+          90090,
+          93093,
+          96096,
+          99099,
+          102102,
+          105105,
+          108108,
+          111111,
+          114114,
+          117117,
+          120120,
+          123123,
+          126126,
+          129129,
+          132132,
+          135135,
+          138138,
+          141141,
+          144144,
+          147147,
+          150150,
+          153153,
+          156156,
+          159159,
+          162162,
+          165165,
+          168168,
+          171171,
+          174174,
+          177177,
+          180180
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/30000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "content": {
+        "kind": "bar",
+        "note": null,
+        "bar_width": 32,
+        "band_rows": [
+          324,
+          756
+        ],
+        "sample_y": 540,
+        "interlaced_fields": true,
+        "field_order": "tt",
+        "field_step_px": 4,
+        "film_step_px": 16,
+        "cut_frame": 30,
+        "frames": [
+          {
+            "pts": 3003,
+            "even_x": 64,
+            "odd_x": 64,
+            "film": [
+              0,
+              0
+            ]
+          },
+          {
+            "pts": 6006,
+            "even_x": 64,
+            "odd_x": 80,
+            "film": [
+              0,
+              1
+            ]
+          },
+          {
+            "pts": 9009,
+            "even_x": 80,
+            "odd_x": 96,
+            "film": [
+              1,
+              2
+            ]
+          },
+          {
+            "pts": 12012,
+            "even_x": 96,
+            "odd_x": 96,
+            "film": [
+              2,
+              2
+            ]
+          },
+          {
+            "pts": 15015,
+            "even_x": 112,
+            "odd_x": 112,
+            "film": [
+              3,
+              3
+            ]
+          },
+          {
+            "pts": 18018,
+            "even_x": 128,
+            "odd_x": 128,
+            "film": [
+              4,
+              4
+            ]
+          },
+          {
+            "pts": 21021,
+            "even_x": 128,
+            "odd_x": 144,
+            "film": [
+              4,
+              5
+            ]
+          },
+          {
+            "pts": 24024,
+            "even_x": 144,
+            "odd_x": 160,
+            "film": [
+              5,
+              6
+            ]
+          },
+          {
+            "pts": 27027,
+            "even_x": 160,
+            "odd_x": 160,
+            "film": [
+              6,
+              6
+            ]
+          },
+          {
+            "pts": 30030,
+            "even_x": 176,
+            "odd_x": 176,
+            "film": [
+              7,
+              7
+            ]
+          },
+          {
+            "pts": 33033,
+            "even_x": 192,
+            "odd_x": 192,
+            "film": [
+              8,
+              8
+            ]
+          },
+          {
+            "pts": 36036,
+            "even_x": 192,
+            "odd_x": 208,
+            "film": [
+              8,
+              9
+            ]
+          },
+          {
+            "pts": 39039,
+            "even_x": 208,
+            "odd_x": 224,
+            "film": [
+              9,
+              10
+            ]
+          },
+          {
+            "pts": 42042,
+            "even_x": 224,
+            "odd_x": 224,
+            "film": [
+              10,
+              10
+            ]
+          },
+          {
+            "pts": 45045,
+            "even_x": 240,
+            "odd_x": 240,
+            "film": [
+              11,
+              11
+            ]
+          },
+          {
+            "pts": 48048,
+            "even_x": 256,
+            "odd_x": 256,
+            "film": [
+              12,
+              12
+            ]
+          },
+          {
+            "pts": 51051,
+            "even_x": 256,
+            "odd_x": 272,
+            "film": [
+              12,
+              13
+            ]
+          },
+          {
+            "pts": 54054,
+            "even_x": 272,
+            "odd_x": 288,
+            "film": [
+              13,
+              14
+            ]
+          },
+          {
+            "pts": 57057,
+            "even_x": 288,
+            "odd_x": 288,
+            "film": [
+              14,
+              14
+            ]
+          },
+          {
+            "pts": 60060,
+            "even_x": 304,
+            "odd_x": 304,
+            "film": [
+              15,
+              15
+            ]
+          },
+          {
+            "pts": 63063,
+            "even_x": 320,
+            "odd_x": 320,
+            "film": [
+              16,
+              16
+            ]
+          },
+          {
+            "pts": 66066,
+            "even_x": 320,
+            "odd_x": 336,
+            "film": [
+              16,
+              17
+            ]
+          },
+          {
+            "pts": 69069,
+            "even_x": 336,
+            "odd_x": 352,
+            "film": [
+              17,
+              18
+            ]
+          },
+          {
+            "pts": 72072,
+            "even_x": 352,
+            "odd_x": 352,
+            "film": [
+              18,
+              18
+            ]
+          },
+          {
+            "pts": 75075,
+            "even_x": 368,
+            "odd_x": 368,
+            "film": [
+              19,
+              19
+            ]
+          },
+          {
+            "pts": 78078,
+            "even_x": 384,
+            "odd_x": 384,
+            "film": [
+              20,
+              20
+            ]
+          },
+          {
+            "pts": 81081,
+            "even_x": 384,
+            "odd_x": 400,
+            "film": [
+              20,
+              21
+            ]
+          },
+          {
+            "pts": 84084,
+            "even_x": 400,
+            "odd_x": 416,
+            "film": [
+              21,
+              22
+            ]
+          },
+          {
+            "pts": 87087,
+            "even_x": 416,
+            "odd_x": 416,
+            "film": [
+              22,
+              22
+            ]
+          },
+          {
+            "pts": 90090,
+            "even_x": 432,
+            "odd_x": 432,
+            "film": [
+              23,
+              23
+            ]
+          },
+          {
+            "pts": 93093,
+            "even_x": 64,
+            "odd_x": 68,
+            "film": null
+          },
+          {
+            "pts": 96096,
+            "even_x": 72,
+            "odd_x": 76,
+            "film": null
+          },
+          {
+            "pts": 99099,
+            "even_x": 80,
+            "odd_x": 84,
+            "film": null
+          },
+          {
+            "pts": 102102,
+            "even_x": 88,
+            "odd_x": 92,
+            "film": null
+          },
+          {
+            "pts": 105105,
+            "even_x": 96,
+            "odd_x": 100,
+            "film": null
+          },
+          {
+            "pts": 108108,
+            "even_x": 104,
+            "odd_x": 108,
+            "film": null
+          },
+          {
+            "pts": 111111,
+            "even_x": 112,
+            "odd_x": 116,
+            "film": null
+          },
+          {
+            "pts": 114114,
+            "even_x": 120,
+            "odd_x": 124,
+            "film": null
+          },
+          {
+            "pts": 117117,
+            "even_x": 128,
+            "odd_x": 132,
+            "film": null
+          },
+          {
+            "pts": 120120,
+            "even_x": 136,
+            "odd_x": 140,
+            "film": null
+          },
+          {
+            "pts": 123123,
+            "even_x": 144,
+            "odd_x": 148,
+            "film": null
+          },
+          {
+            "pts": 126126,
+            "even_x": 152,
+            "odd_x": 156,
+            "film": null
+          },
+          {
+            "pts": 129129,
+            "even_x": 160,
+            "odd_x": 164,
+            "film": null
+          },
+          {
+            "pts": 132132,
+            "even_x": 168,
+            "odd_x": 172,
+            "film": null
+          },
+          {
+            "pts": 135135,
+            "even_x": 176,
+            "odd_x": 180,
+            "film": null
+          },
+          {
+            "pts": 138138,
+            "even_x": 184,
+            "odd_x": 188,
+            "film": null
+          },
+          {
+            "pts": 141141,
+            "even_x": 192,
+            "odd_x": 196,
+            "film": null
+          },
+          {
+            "pts": 144144,
+            "even_x": 200,
+            "odd_x": 204,
+            "film": null
+          },
+          {
+            "pts": 147147,
+            "even_x": 208,
+            "odd_x": 212,
+            "film": null
+          },
+          {
+            "pts": 150150,
+            "even_x": 216,
+            "odd_x": 220,
+            "film": null
+          },
+          {
+            "pts": 153153,
+            "even_x": 224,
+            "odd_x": 228,
+            "film": null
+          },
+          {
+            "pts": 156156,
+            "even_x": 232,
+            "odd_x": 236,
+            "film": null
+          },
+          {
+            "pts": 159159,
+            "even_x": 240,
+            "odd_x": 244,
+            "film": null
+          },
+          {
+            "pts": 162162,
+            "even_x": 248,
+            "odd_x": 252,
+            "film": null
+          },
+          {
+            "pts": 165165,
+            "even_x": 256,
+            "odd_x": 260,
+            "film": null
+          },
+          {
+            "pts": 168168,
+            "even_x": 264,
+            "odd_x": 268,
+            "film": null
+          },
+          {
+            "pts": 171171,
+            "even_x": 272,
+            "odd_x": 276,
+            "film": null
+          },
+          {
+            "pts": 174174,
+            "even_x": 280,
+            "odd_x": 284,
+            "film": null
+          },
+          {
+            "pts": 177177,
+            "even_x": 288,
+            "odd_x": 292,
+            "film": null
+          },
+          {
+            "pts": 180180,
+            "even_x": 296,
+            "odd_x": 300,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 316592,
+      "sha256": "a82f17950ac239a7d5fe5cf6c33a87d26f76218b4ea902cd8b5371a61f0bce00",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "1920x1080",
+          "-r",
+          "30000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=2.502",
+          "-vf",
+          "setfield=tff",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "8M",
+          "-maxrate",
+          "8M",
+          "-bufsize",
+          "16M",
+          "-bf",
+          "0",
+          "-g",
+          "15",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact+ildct+ilme",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "mixed_film_video_1080i.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/mixed_film_video_1080i.framemd5"
+    },
+    {
+      "name": "flags_progressive_as_tff",
+      "file": "flags_progressive_as_tff.ts",
+      "kind": "bar",
+      "duration_frames": 30,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 720,
+        "height": 480,
+        "pix_fmt": "yuv420p",
+        "field_order": "tt",
+        "sar": "1:1",
+        "display_aspect_ratio": "3:2",
+        "avg_frame_rate": "30000/1001",
+        "r_frame_rate": "30000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          3003,
+          6006,
+          9009,
+          12012,
+          15015,
+          18018,
+          21021,
+          24024,
+          27027,
+          30030,
+          33033,
+          36036,
+          39039,
+          42042,
+          45045,
+          48048,
+          51051,
+          54054,
+          57057,
+          60060,
+          63063,
+          66066,
+          69069,
+          72072,
+          75075,
+          78078,
+          81081,
+          84084,
+          87087,
+          90090
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/30000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": null,
+      "content": {
+        "kind": "bar_misflagged",
+        "note": "progressive content flagged TFF interlaced",
+        "bar_width": 20,
+        "band_rows": [
+          144,
+          336
+        ],
+        "sample_y": 240,
+        "interlaced_fields": true,
+        "field_order": "tt",
+        "field_step_px": null,
+        "film_step_px": null,
+        "cut_frame": null,
+        "frames": [
+          {
+            "pts": 3003,
+            "even_x": 24,
+            "odd_x": 24,
+            "film": null
+          },
+          {
+            "pts": 6006,
+            "even_x": 32,
+            "odd_x": 32,
+            "film": null
+          },
+          {
+            "pts": 9009,
+            "even_x": 40,
+            "odd_x": 40,
+            "film": null
+          },
+          {
+            "pts": 12012,
+            "even_x": 48,
+            "odd_x": 48,
+            "film": null
+          },
+          {
+            "pts": 15015,
+            "even_x": 56,
+            "odd_x": 56,
+            "film": null
+          },
+          {
+            "pts": 18018,
+            "even_x": 64,
+            "odd_x": 64,
+            "film": null
+          },
+          {
+            "pts": 21021,
+            "even_x": 72,
+            "odd_x": 72,
+            "film": null
+          },
+          {
+            "pts": 24024,
+            "even_x": 80,
+            "odd_x": 80,
+            "film": null
+          },
+          {
+            "pts": 27027,
+            "even_x": 88,
+            "odd_x": 88,
+            "film": null
+          },
+          {
+            "pts": 30030,
+            "even_x": 96,
+            "odd_x": 96,
+            "film": null
+          },
+          {
+            "pts": 33033,
+            "even_x": 104,
+            "odd_x": 104,
+            "film": null
+          },
+          {
+            "pts": 36036,
+            "even_x": 112,
+            "odd_x": 112,
+            "film": null
+          },
+          {
+            "pts": 39039,
+            "even_x": 120,
+            "odd_x": 120,
+            "film": null
+          },
+          {
+            "pts": 42042,
+            "even_x": 128,
+            "odd_x": 128,
+            "film": null
+          },
+          {
+            "pts": 45045,
+            "even_x": 136,
+            "odd_x": 136,
+            "film": null
+          },
+          {
+            "pts": 48048,
+            "even_x": 144,
+            "odd_x": 144,
+            "film": null
+          },
+          {
+            "pts": 51051,
+            "even_x": 152,
+            "odd_x": 152,
+            "film": null
+          },
+          {
+            "pts": 54054,
+            "even_x": 160,
+            "odd_x": 160,
+            "film": null
+          },
+          {
+            "pts": 57057,
+            "even_x": 168,
+            "odd_x": 168,
+            "film": null
+          },
+          {
+            "pts": 60060,
+            "even_x": 176,
+            "odd_x": 176,
+            "film": null
+          },
+          {
+            "pts": 63063,
+            "even_x": 184,
+            "odd_x": 184,
+            "film": null
+          },
+          {
+            "pts": 66066,
+            "even_x": 192,
+            "odd_x": 192,
+            "film": null
+          },
+          {
+            "pts": 69069,
+            "even_x": 200,
+            "odd_x": 200,
+            "film": null
+          },
+          {
+            "pts": 72072,
+            "even_x": 208,
+            "odd_x": 208,
+            "film": null
+          },
+          {
+            "pts": 75075,
+            "even_x": 216,
+            "odd_x": 216,
+            "film": null
+          },
+          {
+            "pts": 78078,
+            "even_x": 224,
+            "odd_x": 224,
+            "film": null
+          },
+          {
+            "pts": 81081,
+            "even_x": 232,
+            "odd_x": 232,
+            "film": null
+          },
+          {
+            "pts": 84084,
+            "even_x": 240,
+            "odd_x": 240,
+            "film": null
+          },
+          {
+            "pts": 87087,
+            "even_x": 248,
+            "odd_x": 248,
+            "film": null
+          },
+          {
+            "pts": 90090,
+            "even_x": 256,
+            "odd_x": 256,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 32712,
+      "sha256": "8639dcdb5f2b02d36d067a37442f177e05f8701ecdeb4ae18c0887d0e4d357d6",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "720x480",
+          "-r",
+          "30000/1001",
+          "-i",
+          "-",
+          "-vf",
+          "setfield=tff",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "3M",
+          "-maxrate",
+          "3M",
+          "-bufsize",
+          "6M",
+          "-bf",
+          "0",
+          "-g",
+          "15",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact+ildct+ilme",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "flags_progressive_as_tff.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/flags_progressive_as_tff.framemd5"
+    },
+    {
+      "name": "flags_interlaced_as_progressive",
+      "file": "flags_interlaced_as_progressive.ts",
+      "kind": "bar",
+      "duration_frames": 30,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 720,
+        "height": 480,
+        "pix_fmt": "yuv420p",
+        "field_order": "progressive",
+        "sar": "1:1",
+        "display_aspect_ratio": "3:2",
+        "avg_frame_rate": "30000/1001",
+        "r_frame_rate": "30000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          3003,
+          6006,
+          9009,
+          12012,
+          15015,
+          18018,
+          21021,
+          24024,
+          27027,
+          30030,
+          33033,
+          36036,
+          39039,
+          42042,
+          45045,
+          48048,
+          51051,
+          54054,
+          57057,
+          60060,
+          63063,
+          66066,
+          69069,
+          72072,
+          75075,
+          78078,
+          81081,
+          84084,
+          87087,
+          90090
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/30000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": null,
+      "content": {
+        "kind": "bar_misflagged",
+        "note": "interlaced content flagged progressive",
+        "bar_width": 20,
+        "band_rows": [
+          144,
+          336
+        ],
+        "sample_y": 240,
+        "interlaced_fields": false,
+        "field_order": "progressive",
+        "field_step_px": 2,
+        "film_step_px": null,
+        "cut_frame": null,
+        "frames": [
+          {
+            "pts": 3003,
+            "even_x": 24,
+            "odd_x": 26,
+            "film": null
+          },
+          {
+            "pts": 6006,
+            "even_x": 28,
+            "odd_x": 30,
+            "film": null
+          },
+          {
+            "pts": 9009,
+            "even_x": 32,
+            "odd_x": 34,
+            "film": null
+          },
+          {
+            "pts": 12012,
+            "even_x": 36,
+            "odd_x": 38,
+            "film": null
+          },
+          {
+            "pts": 15015,
+            "even_x": 40,
+            "odd_x": 42,
+            "film": null
+          },
+          {
+            "pts": 18018,
+            "even_x": 44,
+            "odd_x": 46,
+            "film": null
+          },
+          {
+            "pts": 21021,
+            "even_x": 48,
+            "odd_x": 50,
+            "film": null
+          },
+          {
+            "pts": 24024,
+            "even_x": 52,
+            "odd_x": 54,
+            "film": null
+          },
+          {
+            "pts": 27027,
+            "even_x": 56,
+            "odd_x": 58,
+            "film": null
+          },
+          {
+            "pts": 30030,
+            "even_x": 60,
+            "odd_x": 62,
+            "film": null
+          },
+          {
+            "pts": 33033,
+            "even_x": 64,
+            "odd_x": 66,
+            "film": null
+          },
+          {
+            "pts": 36036,
+            "even_x": 68,
+            "odd_x": 70,
+            "film": null
+          },
+          {
+            "pts": 39039,
+            "even_x": 72,
+            "odd_x": 74,
+            "film": null
+          },
+          {
+            "pts": 42042,
+            "even_x": 76,
+            "odd_x": 78,
+            "film": null
+          },
+          {
+            "pts": 45045,
+            "even_x": 80,
+            "odd_x": 82,
+            "film": null
+          },
+          {
+            "pts": 48048,
+            "even_x": 84,
+            "odd_x": 86,
+            "film": null
+          },
+          {
+            "pts": 51051,
+            "even_x": 88,
+            "odd_x": 90,
+            "film": null
+          },
+          {
+            "pts": 54054,
+            "even_x": 92,
+            "odd_x": 94,
+            "film": null
+          },
+          {
+            "pts": 57057,
+            "even_x": 96,
+            "odd_x": 98,
+            "film": null
+          },
+          {
+            "pts": 60060,
+            "even_x": 100,
+            "odd_x": 102,
+            "film": null
+          },
+          {
+            "pts": 63063,
+            "even_x": 104,
+            "odd_x": 106,
+            "film": null
+          },
+          {
+            "pts": 66066,
+            "even_x": 108,
+            "odd_x": 110,
+            "film": null
+          },
+          {
+            "pts": 69069,
+            "even_x": 112,
+            "odd_x": 114,
+            "film": null
+          },
+          {
+            "pts": 72072,
+            "even_x": 116,
+            "odd_x": 118,
+            "film": null
+          },
+          {
+            "pts": 75075,
+            "even_x": 120,
+            "odd_x": 122,
+            "film": null
+          },
+          {
+            "pts": 78078,
+            "even_x": 124,
+            "odd_x": 126,
+            "film": null
+          },
+          {
+            "pts": 81081,
+            "even_x": 128,
+            "odd_x": 130,
+            "film": null
+          },
+          {
+            "pts": 84084,
+            "even_x": 132,
+            "odd_x": 134,
+            "film": null
+          },
+          {
+            "pts": 87087,
+            "even_x": 136,
+            "odd_x": 138,
+            "film": null
+          },
+          {
+            "pts": 90090,
+            "even_x": 140,
+            "odd_x": 142,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 43052,
+      "sha256": "c935ca2d49d97a24c2820a2543e0a5b5278a86639d949a670b9d720b21b9fd8f",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "720x480",
+          "-r",
+          "30000/1001",
+          "-i",
+          "-",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "3M",
+          "-maxrate",
+          "3M",
+          "-bufsize",
+          "6M",
+          "-bf",
+          "0",
+          "-g",
+          "15",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "flags_interlaced_as_progressive.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/flags_interlaced_as_progressive.framemd5"
+    },
+    {
+      "name": "anamorphic_480p5994",
+      "file": "anamorphic_480p5994.ts",
+      "kind": "bar",
+      "duration_frames": 90,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 720,
+        "height": 480,
+        "pix_fmt": "yuv420p",
+        "field_order": "progressive",
+        "sar": "32:27",
+        "display_aspect_ratio": "16:9",
+        "avg_frame_rate": "60000/1001",
+        "r_frame_rate": "60000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          1502,
+          3004,
+          4505,
+          6007,
+          7508,
+          9010,
+          10511,
+          12013,
+          13514,
+          15016,
+          16517,
+          18019,
+          19520,
+          21022,
+          22523,
+          24025,
+          25526,
+          27028,
+          28529,
+          30031,
+          31532,
+          33034,
+          34535,
+          36037,
+          37538,
+          39040,
+          40541,
+          42043,
+          43544,
+          45046,
+          46547,
+          48049,
+          49550,
+          51052,
+          52553,
+          54055,
+          55556,
+          57058,
+          58559,
+          60061,
+          61562,
+          63064,
+          64565,
+          66067,
+          67568,
+          69070,
+          70571,
+          72073,
+          73574,
+          75076,
+          76577,
+          78079,
+          79580,
+          81082,
+          82583,
+          84085,
+          85586,
+          87088,
+          88589,
+          90091,
+          91592,
+          93094,
+          94595,
+          96097,
+          97598,
+          99100,
+          100601,
+          102103,
+          103604,
+          105106,
+          106607,
+          108109,
+          109610,
+          111112,
+          112613,
+          114115,
+          115616,
+          117118,
+          118619,
+          120121,
+          121622,
+          123124,
+          124625,
+          126127,
+          127628,
+          129130,
+          130631,
+          132133,
+          133634,
+          135136
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/60000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "content": {
+        "kind": "bar",
+        "note": null,
+        "bar_width": 20,
+        "band_rows": [
+          144,
+          336
+        ],
+        "sample_y": 240,
+        "interlaced_fields": false,
+        "field_order": "progressive",
+        "field_step_px": null,
+        "film_step_px": null,
+        "cut_frame": null,
+        "frames": [
+          {
+            "pts": 1502,
+            "even_x": 24,
+            "odd_x": 24,
+            "film": null
+          },
+          {
+            "pts": 3004,
+            "even_x": 31,
+            "odd_x": 31,
+            "film": null
+          },
+          {
+            "pts": 4505,
+            "even_x": 38,
+            "odd_x": 38,
+            "film": null
+          },
+          {
+            "pts": 6007,
+            "even_x": 45,
+            "odd_x": 45,
+            "film": null
+          },
+          {
+            "pts": 7508,
+            "even_x": 52,
+            "odd_x": 52,
+            "film": null
+          },
+          {
+            "pts": 9010,
+            "even_x": 59,
+            "odd_x": 59,
+            "film": null
+          },
+          {
+            "pts": 10511,
+            "even_x": 66,
+            "odd_x": 66,
+            "film": null
+          },
+          {
+            "pts": 12013,
+            "even_x": 73,
+            "odd_x": 73,
+            "film": null
+          },
+          {
+            "pts": 13514,
+            "even_x": 80,
+            "odd_x": 80,
+            "film": null
+          },
+          {
+            "pts": 15016,
+            "even_x": 87,
+            "odd_x": 87,
+            "film": null
+          },
+          {
+            "pts": 16517,
+            "even_x": 94,
+            "odd_x": 94,
+            "film": null
+          },
+          {
+            "pts": 18019,
+            "even_x": 101,
+            "odd_x": 101,
+            "film": null
+          },
+          {
+            "pts": 19520,
+            "even_x": 108,
+            "odd_x": 108,
+            "film": null
+          },
+          {
+            "pts": 21022,
+            "even_x": 115,
+            "odd_x": 115,
+            "film": null
+          },
+          {
+            "pts": 22523,
+            "even_x": 122,
+            "odd_x": 122,
+            "film": null
+          },
+          {
+            "pts": 24025,
+            "even_x": 129,
+            "odd_x": 129,
+            "film": null
+          },
+          {
+            "pts": 25526,
+            "even_x": 136,
+            "odd_x": 136,
+            "film": null
+          },
+          {
+            "pts": 27028,
+            "even_x": 143,
+            "odd_x": 143,
+            "film": null
+          },
+          {
+            "pts": 28529,
+            "even_x": 150,
+            "odd_x": 150,
+            "film": null
+          },
+          {
+            "pts": 30031,
+            "even_x": 157,
+            "odd_x": 157,
+            "film": null
+          },
+          {
+            "pts": 31532,
+            "even_x": 164,
+            "odd_x": 164,
+            "film": null
+          },
+          {
+            "pts": 33034,
+            "even_x": 171,
+            "odd_x": 171,
+            "film": null
+          },
+          {
+            "pts": 34535,
+            "even_x": 178,
+            "odd_x": 178,
+            "film": null
+          },
+          {
+            "pts": 36037,
+            "even_x": 185,
+            "odd_x": 185,
+            "film": null
+          },
+          {
+            "pts": 37538,
+            "even_x": 192,
+            "odd_x": 192,
+            "film": null
+          },
+          {
+            "pts": 39040,
+            "even_x": 199,
+            "odd_x": 199,
+            "film": null
+          },
+          {
+            "pts": 40541,
+            "even_x": 206,
+            "odd_x": 206,
+            "film": null
+          },
+          {
+            "pts": 42043,
+            "even_x": 213,
+            "odd_x": 213,
+            "film": null
+          },
+          {
+            "pts": 43544,
+            "even_x": 220,
+            "odd_x": 220,
+            "film": null
+          },
+          {
+            "pts": 45046,
+            "even_x": 227,
+            "odd_x": 227,
+            "film": null
+          },
+          {
+            "pts": 46547,
+            "even_x": 234,
+            "odd_x": 234,
+            "film": null
+          },
+          {
+            "pts": 48049,
+            "even_x": 241,
+            "odd_x": 241,
+            "film": null
+          },
+          {
+            "pts": 49550,
+            "even_x": 248,
+            "odd_x": 248,
+            "film": null
+          },
+          {
+            "pts": 51052,
+            "even_x": 255,
+            "odd_x": 255,
+            "film": null
+          },
+          {
+            "pts": 52553,
+            "even_x": 262,
+            "odd_x": 262,
+            "film": null
+          },
+          {
+            "pts": 54055,
+            "even_x": 269,
+            "odd_x": 269,
+            "film": null
+          },
+          {
+            "pts": 55556,
+            "even_x": 276,
+            "odd_x": 276,
+            "film": null
+          },
+          {
+            "pts": 57058,
+            "even_x": 283,
+            "odd_x": 283,
+            "film": null
+          },
+          {
+            "pts": 58559,
+            "even_x": 290,
+            "odd_x": 290,
+            "film": null
+          },
+          {
+            "pts": 60061,
+            "even_x": 297,
+            "odd_x": 297,
+            "film": null
+          },
+          {
+            "pts": 61562,
+            "even_x": 304,
+            "odd_x": 304,
+            "film": null
+          },
+          {
+            "pts": 63064,
+            "even_x": 311,
+            "odd_x": 311,
+            "film": null
+          },
+          {
+            "pts": 64565,
+            "even_x": 318,
+            "odd_x": 318,
+            "film": null
+          },
+          {
+            "pts": 66067,
+            "even_x": 325,
+            "odd_x": 325,
+            "film": null
+          },
+          {
+            "pts": 67568,
+            "even_x": 332,
+            "odd_x": 332,
+            "film": null
+          },
+          {
+            "pts": 69070,
+            "even_x": 339,
+            "odd_x": 339,
+            "film": null
+          },
+          {
+            "pts": 70571,
+            "even_x": 346,
+            "odd_x": 346,
+            "film": null
+          },
+          {
+            "pts": 72073,
+            "even_x": 353,
+            "odd_x": 353,
+            "film": null
+          },
+          {
+            "pts": 73574,
+            "even_x": 360,
+            "odd_x": 360,
+            "film": null
+          },
+          {
+            "pts": 75076,
+            "even_x": 367,
+            "odd_x": 367,
+            "film": null
+          },
+          {
+            "pts": 76577,
+            "even_x": 374,
+            "odd_x": 374,
+            "film": null
+          },
+          {
+            "pts": 78079,
+            "even_x": 381,
+            "odd_x": 381,
+            "film": null
+          },
+          {
+            "pts": 79580,
+            "even_x": 388,
+            "odd_x": 388,
+            "film": null
+          },
+          {
+            "pts": 81082,
+            "even_x": 395,
+            "odd_x": 395,
+            "film": null
+          },
+          {
+            "pts": 82583,
+            "even_x": 402,
+            "odd_x": 402,
+            "film": null
+          },
+          {
+            "pts": 84085,
+            "even_x": 409,
+            "odd_x": 409,
+            "film": null
+          },
+          {
+            "pts": 85586,
+            "even_x": 416,
+            "odd_x": 416,
+            "film": null
+          },
+          {
+            "pts": 87088,
+            "even_x": 423,
+            "odd_x": 423,
+            "film": null
+          },
+          {
+            "pts": 88589,
+            "even_x": 430,
+            "odd_x": 430,
+            "film": null
+          },
+          {
+            "pts": 90091,
+            "even_x": 437,
+            "odd_x": 437,
+            "film": null
+          },
+          {
+            "pts": 91592,
+            "even_x": 444,
+            "odd_x": 444,
+            "film": null
+          },
+          {
+            "pts": 93094,
+            "even_x": 451,
+            "odd_x": 451,
+            "film": null
+          },
+          {
+            "pts": 94595,
+            "even_x": 458,
+            "odd_x": 458,
+            "film": null
+          },
+          {
+            "pts": 96097,
+            "even_x": 465,
+            "odd_x": 465,
+            "film": null
+          },
+          {
+            "pts": 97598,
+            "even_x": 472,
+            "odd_x": 472,
+            "film": null
+          },
+          {
+            "pts": 99100,
+            "even_x": 479,
+            "odd_x": 479,
+            "film": null
+          },
+          {
+            "pts": 100601,
+            "even_x": 486,
+            "odd_x": 486,
+            "film": null
+          },
+          {
+            "pts": 102103,
+            "even_x": 493,
+            "odd_x": 493,
+            "film": null
+          },
+          {
+            "pts": 103604,
+            "even_x": 500,
+            "odd_x": 500,
+            "film": null
+          },
+          {
+            "pts": 105106,
+            "even_x": 507,
+            "odd_x": 507,
+            "film": null
+          },
+          {
+            "pts": 106607,
+            "even_x": 514,
+            "odd_x": 514,
+            "film": null
+          },
+          {
+            "pts": 108109,
+            "even_x": 521,
+            "odd_x": 521,
+            "film": null
+          },
+          {
+            "pts": 109610,
+            "even_x": 528,
+            "odd_x": 528,
+            "film": null
+          },
+          {
+            "pts": 111112,
+            "even_x": 535,
+            "odd_x": 535,
+            "film": null
+          },
+          {
+            "pts": 112613,
+            "even_x": 542,
+            "odd_x": 542,
+            "film": null
+          },
+          {
+            "pts": 114115,
+            "even_x": 549,
+            "odd_x": 549,
+            "film": null
+          },
+          {
+            "pts": 115616,
+            "even_x": 556,
+            "odd_x": 556,
+            "film": null
+          },
+          {
+            "pts": 117118,
+            "even_x": 563,
+            "odd_x": 563,
+            "film": null
+          },
+          {
+            "pts": 118619,
+            "even_x": 570,
+            "odd_x": 570,
+            "film": null
+          },
+          {
+            "pts": 120121,
+            "even_x": 577,
+            "odd_x": 577,
+            "film": null
+          },
+          {
+            "pts": 121622,
+            "even_x": 584,
+            "odd_x": 584,
+            "film": null
+          },
+          {
+            "pts": 123124,
+            "even_x": 591,
+            "odd_x": 591,
+            "film": null
+          },
+          {
+            "pts": 124625,
+            "even_x": 598,
+            "odd_x": 598,
+            "film": null
+          },
+          {
+            "pts": 126127,
+            "even_x": 605,
+            "odd_x": 605,
+            "film": null
+          },
+          {
+            "pts": 127628,
+            "even_x": 612,
+            "odd_x": 612,
+            "film": null
+          },
+          {
+            "pts": 129130,
+            "even_x": 619,
+            "odd_x": 619,
+            "film": null
+          },
+          {
+            "pts": 130631,
+            "even_x": 626,
+            "odd_x": 626,
+            "film": null
+          },
+          {
+            "pts": 132133,
+            "even_x": 633,
+            "odd_x": 633,
+            "film": null
+          },
+          {
+            "pts": 133634,
+            "even_x": 640,
+            "odd_x": 640,
+            "film": null
+          },
+          {
+            "pts": 135136,
+            "even_x": 647,
+            "odd_x": 647,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 119944,
+      "sha256": "14e36a1a8cda6b51515eaedd7abe67f41ab0fa157ed89aa1ca120ed196e2c621",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "720x480",
+          "-r",
+          "60000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=2.002",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "3M",
+          "-maxrate",
+          "3M",
+          "-bufsize",
+          "6M",
+          "-bf",
+          "0",
+          "-g",
+          "30",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-aspect",
+          "16:9",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "anamorphic_480p5994.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/anamorphic_480p5994.framemd5"
+    },
+    {
+      "name": "bars_limited_720p",
+      "file": "bars_limited_720p.ts",
+      "kind": "bars",
+      "duration_frames": 60,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuv420p",
+        "field_order": "progressive",
+        "sar": "1:1",
+        "display_aspect_ratio": "16:9",
+        "avg_frame_rate": "60000/1001",
+        "r_frame_rate": "60000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          1502,
+          3004,
+          4505,
+          6007,
+          7508,
+          9010,
+          10511,
+          12013,
+          13514,
+          15016,
+          16517,
+          18019,
+          19520,
+          21022,
+          22523,
+          24025,
+          25526,
+          27028,
+          28529,
+          30031,
+          31532,
+          33034,
+          34535,
+          36037,
+          37538,
+          39040,
+          40541,
+          42043,
+          43544,
+          45046,
+          46547,
+          48049,
+          49550,
+          51052,
+          52553,
+          54055,
+          55556,
+          57058,
+          58559,
+          60061,
+          61562,
+          63064,
+          64565,
+          66067,
+          67568,
+          69070,
+          70571,
+          72073,
+          73574,
+          75076,
+          76577,
+          78079,
+          79580,
+          81082,
+          82583,
+          84085,
+          85586,
+          87088,
+          88589,
+          90091
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/60000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "bytes": 125960,
+      "sha256": "41f3d2798fdf9c0a68d5fd09236bb211607aa27ea20de85b9343b671bb8632fd",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "1280x720",
+          "-r",
+          "60000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=1.501",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "4M",
+          "-maxrate",
+          "4M",
+          "-bufsize",
+          "8M",
+          "-bf",
+          "0",
+          "-g",
+          "30",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "bars_limited_720p.ts"
+        ]
+      ],
+      "content": {
+        "kind": "bars",
+        "range": "tv",
+        "colorspace": "bt709",
+        "columns": [
+          {
+            "x0": 0,
+            "x1": 183,
+            "rgb": [
+              191,
+              191,
+              191
+            ],
+            "yuv": [
+              180,
+              128,
+              128
+            ]
+          },
+          {
+            "x0": 183,
+            "x1": 366,
+            "rgb": [
+              191,
+              191,
+              0
+            ],
+            "yuv": [
+              168,
+              44,
+              136
+            ]
+          },
+          {
+            "x0": 366,
+            "x1": 549,
+            "rgb": [
+              0,
+              191,
+              191
+            ],
+            "yuv": [
+              145,
+              147,
+              44
+            ]
+          },
+          {
+            "x0": 549,
+            "x1": 731,
+            "rgb": [
+              0,
+              191,
+              0
+            ],
+            "yuv": [
+              133,
+              63,
+              52
+            ]
+          },
+          {
+            "x0": 731,
+            "x1": 914,
+            "rgb": [
+              191,
+              0,
+              191
+            ],
+            "yuv": [
+              63,
+              193,
+              204
+            ]
+          },
+          {
+            "x0": 914,
+            "x1": 1097,
+            "rgb": [
+              191,
+              0,
+              0
+            ],
+            "yuv": [
+              51,
+              109,
+              212
+            ]
+          },
+          {
+            "x0": 1097,
+            "x1": 1280,
+            "rgb": [
+              0,
+              0,
+              191
+            ],
+            "yuv": [
+              28,
+              212,
+              120
+            ]
+          }
+        ],
+        "sample_y": 360
+      },
+      "reference_framemd5": "reference/bars_limited_720p.framemd5"
+    },
+    {
+      "name": "bars_full_720p_h264",
+      "file": "bars_full_720p_h264.ts",
+      "kind": "bars",
+      "duration_frames": 60,
+      "video": {
+        "codec": "h264",
+        "profile": "High",
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuvj420p",
+        "field_order": "progressive",
+        "sar": "1:1",
+        "display_aspect_ratio": null,
+        "avg_frame_rate": "60000/1001",
+        "r_frame_rate": "60000/1001",
+        "time_base": "1/90000",
+        "color_range": "pc",
+        "color_space": "bt709",
+        "pts_ticks": [
+          3003,
+          4505,
+          6006,
+          7508,
+          9009,
+          10511,
+          12012,
+          13514,
+          15015,
+          16517,
+          18018,
+          19520,
+          21021,
+          22523,
+          24024,
+          25526,
+          27027,
+          28529,
+          30030,
+          31532,
+          33033,
+          34535,
+          36036,
+          37538,
+          39039,
+          40541,
+          42042,
+          43544,
+          45045,
+          46547,
+          48048,
+          49550,
+          51051,
+          52553,
+          54054,
+          55556,
+          57057,
+          58559,
+          60060,
+          61562,
+          63063,
+          64565,
+          66066,
+          67568,
+          69069,
+          70571,
+          72072,
+          73574,
+          75075,
+          76577,
+          78078,
+          79580,
+          81081,
+          82583,
+          84084,
+          85586,
+          87087,
+          88589,
+          90090,
+          91592
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/60000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "bytes": 47940,
+      "sha256": "47e1794450712d1d473ab096fdb9c954eea521c900e742512f586945496e1441",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "pc",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "1280x720",
+          "-r",
+          "60000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=1.501",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "libx264",
+          "-preset",
+          "veryfast",
+          "-crf",
+          "16",
+          "-pix_fmt",
+          "yuv420p",
+          "-x264-params",
+          "threads=1",
+          "-g",
+          "30",
+          "-flags",
+          "+bitexact",
+          "-color_range",
+          "pc",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "bars_full_720p_h264.ts"
+        ]
+      ],
+      "content": {
+        "kind": "bars",
+        "range": "pc",
+        "colorspace": "bt709",
+        "columns": [
+          {
+            "x0": 0,
+            "x1": 183,
+            "rgb": [
+              191,
+              191,
+              191
+            ],
+            "yuv": [
+              191,
+              128,
+              128
+            ]
+          },
+          {
+            "x0": 183,
+            "x1": 366,
+            "rgb": [
+              191,
+              191,
+              0
+            ],
+            "yuv": [
+              177,
+              32,
+              137
+            ]
+          },
+          {
+            "x0": 366,
+            "x1": 549,
+            "rgb": [
+              0,
+              191,
+              191
+            ],
+            "yuv": [
+              150,
+              150,
+              32
+            ]
+          },
+          {
+            "x0": 549,
+            "x1": 731,
+            "rgb": [
+              0,
+              191,
+              0
+            ],
+            "yuv": [
+              137,
+              54,
+              41
+            ]
+          },
+          {
+            "x0": 731,
+            "x1": 914,
+            "rgb": [
+              191,
+              0,
+              191
+            ],
+            "yuv": [
+              54,
+              202,
+              215
+            ]
+          },
+          {
+            "x0": 914,
+            "x1": 1097,
+            "rgb": [
+              191,
+              0,
+              0
+            ],
+            "yuv": [
+              41,
+              106,
+              224
+            ]
+          },
+          {
+            "x0": 1097,
+            "x1": 1280,
+            "rgb": [
+              0,
+              0,
+              191
+            ],
+            "yuv": [
+              14,
+              224,
+              119
+            ]
+          }
+        ],
+        "sample_y": 360
+      },
+      "reference_framemd5": "reference/bars_full_720p_h264.framemd5"
+    },
+    {
+      "name": "timestamp_gap_720p",
+      "file": "timestamp_gap_720p.ts",
+      "kind": "bar",
+      "duration_frames": 90,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuv420p",
+        "field_order": "progressive",
+        "sar": "1:1",
+        "display_aspect_ratio": "16:9",
+        "avg_frame_rate": "60000/1001",
+        "r_frame_rate": "60000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          1502,
+          3004,
+          4505,
+          6007,
+          7508,
+          9010,
+          10511,
+          12013,
+          13514,
+          15016,
+          16517,
+          18019,
+          19520,
+          21022,
+          22523,
+          24025,
+          25526,
+          27028,
+          28529,
+          30031,
+          31532,
+          33034,
+          34535,
+          36037,
+          37538,
+          39040,
+          40541,
+          42043,
+          43544,
+          45046,
+          91592,
+          93094,
+          94595,
+          96097,
+          97598,
+          99100,
+          100601,
+          102103,
+          103604,
+          105106,
+          106607,
+          108109,
+          109610,
+          111112,
+          112613,
+          114115,
+          115616,
+          117118,
+          118619,
+          120121,
+          121622,
+          123124,
+          124625,
+          126127,
+          127628,
+          129130,
+          130631,
+          132133,
+          133634,
+          135136,
+          136637,
+          138139,
+          139640,
+          141142,
+          142643,
+          144145,
+          145646,
+          147148,
+          148649,
+          150151,
+          151652,
+          153154,
+          154655,
+          156157,
+          157658,
+          159160,
+          160661,
+          162163,
+          163664,
+          165166,
+          166667,
+          168169,
+          169670,
+          171172,
+          172673,
+          174175,
+          175676,
+          177178,
+          178679,
+          180181
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/60000",
+          "gap_at_frame": 30,
+          "gap_seconds": 0.5
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "content": {
+        "kind": "bar",
+        "note": null,
+        "bar_width": 32,
+        "band_rows": [
+          216,
+          503
+        ],
+        "sample_y": 360,
+        "interlaced_fields": false,
+        "field_order": "progressive",
+        "field_step_px": null,
+        "film_step_px": null,
+        "cut_frame": null,
+        "frames": [
+          {
+            "pts": 1502,
+            "even_x": 32,
+            "odd_x": 32,
+            "film": null
+          },
+          {
+            "pts": 3004,
+            "even_x": 40,
+            "odd_x": 40,
+            "film": null
+          },
+          {
+            "pts": 4505,
+            "even_x": 48,
+            "odd_x": 48,
+            "film": null
+          },
+          {
+            "pts": 6007,
+            "even_x": 56,
+            "odd_x": 56,
+            "film": null
+          },
+          {
+            "pts": 7508,
+            "even_x": 64,
+            "odd_x": 64,
+            "film": null
+          },
+          {
+            "pts": 9010,
+            "even_x": 72,
+            "odd_x": 72,
+            "film": null
+          },
+          {
+            "pts": 10511,
+            "even_x": 80,
+            "odd_x": 80,
+            "film": null
+          },
+          {
+            "pts": 12013,
+            "even_x": 88,
+            "odd_x": 88,
+            "film": null
+          },
+          {
+            "pts": 13514,
+            "even_x": 96,
+            "odd_x": 96,
+            "film": null
+          },
+          {
+            "pts": 15016,
+            "even_x": 104,
+            "odd_x": 104,
+            "film": null
+          },
+          {
+            "pts": 16517,
+            "even_x": 112,
+            "odd_x": 112,
+            "film": null
+          },
+          {
+            "pts": 18019,
+            "even_x": 120,
+            "odd_x": 120,
+            "film": null
+          },
+          {
+            "pts": 19520,
+            "even_x": 128,
+            "odd_x": 128,
+            "film": null
+          },
+          {
+            "pts": 21022,
+            "even_x": 136,
+            "odd_x": 136,
+            "film": null
+          },
+          {
+            "pts": 22523,
+            "even_x": 144,
+            "odd_x": 144,
+            "film": null
+          },
+          {
+            "pts": 24025,
+            "even_x": 152,
+            "odd_x": 152,
+            "film": null
+          },
+          {
+            "pts": 25526,
+            "even_x": 160,
+            "odd_x": 160,
+            "film": null
+          },
+          {
+            "pts": 27028,
+            "even_x": 168,
+            "odd_x": 168,
+            "film": null
+          },
+          {
+            "pts": 28529,
+            "even_x": 176,
+            "odd_x": 176,
+            "film": null
+          },
+          {
+            "pts": 30031,
+            "even_x": 184,
+            "odd_x": 184,
+            "film": null
+          },
+          {
+            "pts": 31532,
+            "even_x": 192,
+            "odd_x": 192,
+            "film": null
+          },
+          {
+            "pts": 33034,
+            "even_x": 200,
+            "odd_x": 200,
+            "film": null
+          },
+          {
+            "pts": 34535,
+            "even_x": 208,
+            "odd_x": 208,
+            "film": null
+          },
+          {
+            "pts": 36037,
+            "even_x": 216,
+            "odd_x": 216,
+            "film": null
+          },
+          {
+            "pts": 37538,
+            "even_x": 224,
+            "odd_x": 224,
+            "film": null
+          },
+          {
+            "pts": 39040,
+            "even_x": 232,
+            "odd_x": 232,
+            "film": null
+          },
+          {
+            "pts": 40541,
+            "even_x": 240,
+            "odd_x": 240,
+            "film": null
+          },
+          {
+            "pts": 42043,
+            "even_x": 248,
+            "odd_x": 248,
+            "film": null
+          },
+          {
+            "pts": 43544,
+            "even_x": 256,
+            "odd_x": 256,
+            "film": null
+          },
+          {
+            "pts": 45046,
+            "even_x": 264,
+            "odd_x": 264,
+            "film": null
+          },
+          {
+            "pts": 91592,
+            "even_x": 272,
+            "odd_x": 272,
+            "film": null
+          },
+          {
+            "pts": 93094,
+            "even_x": 280,
+            "odd_x": 280,
+            "film": null
+          },
+          {
+            "pts": 94595,
+            "even_x": 288,
+            "odd_x": 288,
+            "film": null
+          },
+          {
+            "pts": 96097,
+            "even_x": 296,
+            "odd_x": 296,
+            "film": null
+          },
+          {
+            "pts": 97598,
+            "even_x": 304,
+            "odd_x": 304,
+            "film": null
+          },
+          {
+            "pts": 99100,
+            "even_x": 312,
+            "odd_x": 312,
+            "film": null
+          },
+          {
+            "pts": 100601,
+            "even_x": 320,
+            "odd_x": 320,
+            "film": null
+          },
+          {
+            "pts": 102103,
+            "even_x": 328,
+            "odd_x": 328,
+            "film": null
+          },
+          {
+            "pts": 103604,
+            "even_x": 336,
+            "odd_x": 336,
+            "film": null
+          },
+          {
+            "pts": 105106,
+            "even_x": 344,
+            "odd_x": 344,
+            "film": null
+          },
+          {
+            "pts": 106607,
+            "even_x": 352,
+            "odd_x": 352,
+            "film": null
+          },
+          {
+            "pts": 108109,
+            "even_x": 360,
+            "odd_x": 360,
+            "film": null
+          },
+          {
+            "pts": 109610,
+            "even_x": 368,
+            "odd_x": 368,
+            "film": null
+          },
+          {
+            "pts": 111112,
+            "even_x": 376,
+            "odd_x": 376,
+            "film": null
+          },
+          {
+            "pts": 112613,
+            "even_x": 384,
+            "odd_x": 384,
+            "film": null
+          },
+          {
+            "pts": 114115,
+            "even_x": 392,
+            "odd_x": 392,
+            "film": null
+          },
+          {
+            "pts": 115616,
+            "even_x": 400,
+            "odd_x": 400,
+            "film": null
+          },
+          {
+            "pts": 117118,
+            "even_x": 408,
+            "odd_x": 408,
+            "film": null
+          },
+          {
+            "pts": 118619,
+            "even_x": 416,
+            "odd_x": 416,
+            "film": null
+          },
+          {
+            "pts": 120121,
+            "even_x": 424,
+            "odd_x": 424,
+            "film": null
+          },
+          {
+            "pts": 121622,
+            "even_x": 432,
+            "odd_x": 432,
+            "film": null
+          },
+          {
+            "pts": 123124,
+            "even_x": 440,
+            "odd_x": 440,
+            "film": null
+          },
+          {
+            "pts": 124625,
+            "even_x": 448,
+            "odd_x": 448,
+            "film": null
+          },
+          {
+            "pts": 126127,
+            "even_x": 456,
+            "odd_x": 456,
+            "film": null
+          },
+          {
+            "pts": 127628,
+            "even_x": 464,
+            "odd_x": 464,
+            "film": null
+          },
+          {
+            "pts": 129130,
+            "even_x": 472,
+            "odd_x": 472,
+            "film": null
+          },
+          {
+            "pts": 130631,
+            "even_x": 480,
+            "odd_x": 480,
+            "film": null
+          },
+          {
+            "pts": 132133,
+            "even_x": 488,
+            "odd_x": 488,
+            "film": null
+          },
+          {
+            "pts": 133634,
+            "even_x": 496,
+            "odd_x": 496,
+            "film": null
+          },
+          {
+            "pts": 135136,
+            "even_x": 504,
+            "odd_x": 504,
+            "film": null
+          },
+          {
+            "pts": 136637,
+            "even_x": 512,
+            "odd_x": 512,
+            "film": null
+          },
+          {
+            "pts": 138139,
+            "even_x": 520,
+            "odd_x": 520,
+            "film": null
+          },
+          {
+            "pts": 139640,
+            "even_x": 528,
+            "odd_x": 528,
+            "film": null
+          },
+          {
+            "pts": 141142,
+            "even_x": 536,
+            "odd_x": 536,
+            "film": null
+          },
+          {
+            "pts": 142643,
+            "even_x": 544,
+            "odd_x": 544,
+            "film": null
+          },
+          {
+            "pts": 144145,
+            "even_x": 552,
+            "odd_x": 552,
+            "film": null
+          },
+          {
+            "pts": 145646,
+            "even_x": 560,
+            "odd_x": 560,
+            "film": null
+          },
+          {
+            "pts": 147148,
+            "even_x": 568,
+            "odd_x": 568,
+            "film": null
+          },
+          {
+            "pts": 148649,
+            "even_x": 576,
+            "odd_x": 576,
+            "film": null
+          },
+          {
+            "pts": 150151,
+            "even_x": 584,
+            "odd_x": 584,
+            "film": null
+          },
+          {
+            "pts": 151652,
+            "even_x": 592,
+            "odd_x": 592,
+            "film": null
+          },
+          {
+            "pts": 153154,
+            "even_x": 600,
+            "odd_x": 600,
+            "film": null
+          },
+          {
+            "pts": 154655,
+            "even_x": 608,
+            "odd_x": 608,
+            "film": null
+          },
+          {
+            "pts": 156157,
+            "even_x": 616,
+            "odd_x": 616,
+            "film": null
+          },
+          {
+            "pts": 157658,
+            "even_x": 624,
+            "odd_x": 624,
+            "film": null
+          },
+          {
+            "pts": 159160,
+            "even_x": 632,
+            "odd_x": 632,
+            "film": null
+          },
+          {
+            "pts": 160661,
+            "even_x": 640,
+            "odd_x": 640,
+            "film": null
+          },
+          {
+            "pts": 162163,
+            "even_x": 648,
+            "odd_x": 648,
+            "film": null
+          },
+          {
+            "pts": 163664,
+            "even_x": 656,
+            "odd_x": 656,
+            "film": null
+          },
+          {
+            "pts": 165166,
+            "even_x": 664,
+            "odd_x": 664,
+            "film": null
+          },
+          {
+            "pts": 166667,
+            "even_x": 672,
+            "odd_x": 672,
+            "film": null
+          },
+          {
+            "pts": 168169,
+            "even_x": 680,
+            "odd_x": 680,
+            "film": null
+          },
+          {
+            "pts": 169670,
+            "even_x": 688,
+            "odd_x": 688,
+            "film": null
+          },
+          {
+            "pts": 171172,
+            "even_x": 696,
+            "odd_x": 696,
+            "film": null
+          },
+          {
+            "pts": 172673,
+            "even_x": 704,
+            "odd_x": 704,
+            "film": null
+          },
+          {
+            "pts": 174175,
+            "even_x": 712,
+            "odd_x": 712,
+            "film": null
+          },
+          {
+            "pts": 175676,
+            "even_x": 720,
+            "odd_x": 720,
+            "film": null
+          },
+          {
+            "pts": 177178,
+            "even_x": 728,
+            "odd_x": 728,
+            "film": null
+          },
+          {
+            "pts": 178679,
+            "even_x": 736,
+            "odd_x": 736,
+            "film": null
+          },
+          {
+            "pts": 180181,
+            "even_x": 744,
+            "odd_x": 744,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 181232,
+      "sha256": "dcc74d3e1d6680f4b62fb386daa3ac613d35a2cc69b380fed29296c9a2ac5288",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "1280x720",
+          "-r",
+          "60000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=2.502",
+          "-vf",
+          "settb=1/90000,setpts=PTS+if(gte(N\\,30)\\,0.5*90000\\,0)",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "6M",
+          "-maxrate",
+          "6M",
+          "-bufsize",
+          "12M",
+          "-bf",
+          "0",
+          "-g",
+          "30",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "timestamp_gap_720p.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/timestamp_gap_720p.framemd5"
+    },
+    {
+      "name": "resolution_change",
+      "file": "resolution_change.ts",
+      "kind": "resolution_change",
+      "duration_frames": 150,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 720,
+        "height": 480,
+        "pix_fmt": "yuv420p",
+        "field_order": "progressive",
+        "sar": "1:1",
+        "display_aspect_ratio": "3:2",
+        "avg_frame_rate": "60000/1001",
+        "r_frame_rate": "60000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          0,
+          1502,
+          3003,
+          4505,
+          6006,
+          7508,
+          9009,
+          10511,
+          12012,
+          13514,
+          15015,
+          16517,
+          18018,
+          19520,
+          21021,
+          22523,
+          24024,
+          25526,
+          27027,
+          28529,
+          30030,
+          31532,
+          33033,
+          34535,
+          36036,
+          37538,
+          39039,
+          40541,
+          42042,
+          43544,
+          45045,
+          46547,
+          48048,
+          49550,
+          51051,
+          52553,
+          54054,
+          55556,
+          57057,
+          58559,
+          60060,
+          61562,
+          63063,
+          64565,
+          66066,
+          67568,
+          69069,
+          70571,
+          72072,
+          73574,
+          75075,
+          76577,
+          78078,
+          79580,
+          81081,
+          82583,
+          84084,
+          85586,
+          87087,
+          88589,
+          90090,
+          91592,
+          93093,
+          94595,
+          96096,
+          97598,
+          99099,
+          100601,
+          102102,
+          103604,
+          105105,
+          106607,
+          108108,
+          109610,
+          111111,
+          112613,
+          114115,
+          115616,
+          117118,
+          118619,
+          120121,
+          121622,
+          123124,
+          124625,
+          126127,
+          127628,
+          129130,
+          130631,
+          132133,
+          133634,
+          135136,
+          136637,
+          138139,
+          139640,
+          141142,
+          142643,
+          144145,
+          145646,
+          147148,
+          148649,
+          150151,
+          151652,
+          153154,
+          154655,
+          156157,
+          157658,
+          159160,
+          160661,
+          162163,
+          163664,
+          165166,
+          166667,
+          168169,
+          169670,
+          171172,
+          172673,
+          174175,
+          175676,
+          177178,
+          178679,
+          180181,
+          181682,
+          183184,
+          184685,
+          186187,
+          187688,
+          189190,
+          190691,
+          192193,
+          193694,
+          195196,
+          196697,
+          198199,
+          199700,
+          201202,
+          202703,
+          204205,
+          205706,
+          207208,
+          208709,
+          210211,
+          211712,
+          213214,
+          214715,
+          216217,
+          217718,
+          219220,
+          220721,
+          222223,
+          223724
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/60000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": null,
+      "content": {
+        "kind": "resolution_change",
+        "segments": [
+          {
+            "start_frame": 0,
+            "frames": 75,
+            "width": 720,
+            "height": 480,
+            "bar_width": 20,
+            "sample_y": 240
+          },
+          {
+            "start_frame": 75,
+            "frames": 75,
+            "width": 1280,
+            "height": 720,
+            "bar_width": 32,
+            "sample_y": 360
+          }
+        ],
+        "frames": [
+          {
+            "pts": 0,
+            "even_x": 32,
+            "odd_x": 32,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 1502,
+            "even_x": 40,
+            "odd_x": 40,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 3003,
+            "even_x": 48,
+            "odd_x": 48,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 4505,
+            "even_x": 56,
+            "odd_x": 56,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 6006,
+            "even_x": 64,
+            "odd_x": 64,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 7508,
+            "even_x": 72,
+            "odd_x": 72,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 9009,
+            "even_x": 80,
+            "odd_x": 80,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 10511,
+            "even_x": 88,
+            "odd_x": 88,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 12012,
+            "even_x": 96,
+            "odd_x": 96,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 13514,
+            "even_x": 104,
+            "odd_x": 104,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 15015,
+            "even_x": 112,
+            "odd_x": 112,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 16517,
+            "even_x": 120,
+            "odd_x": 120,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 18018,
+            "even_x": 128,
+            "odd_x": 128,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 19520,
+            "even_x": 136,
+            "odd_x": 136,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 21021,
+            "even_x": 144,
+            "odd_x": 144,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 22523,
+            "even_x": 152,
+            "odd_x": 152,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 24024,
+            "even_x": 160,
+            "odd_x": 160,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 25526,
+            "even_x": 168,
+            "odd_x": 168,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 27027,
+            "even_x": 176,
+            "odd_x": 176,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 28529,
+            "even_x": 184,
+            "odd_x": 184,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 30030,
+            "even_x": 192,
+            "odd_x": 192,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 31532,
+            "even_x": 200,
+            "odd_x": 200,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 33033,
+            "even_x": 208,
+            "odd_x": 208,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 34535,
+            "even_x": 216,
+            "odd_x": 216,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 36036,
+            "even_x": 224,
+            "odd_x": 224,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 37538,
+            "even_x": 232,
+            "odd_x": 232,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 39039,
+            "even_x": 240,
+            "odd_x": 240,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 40541,
+            "even_x": 248,
+            "odd_x": 248,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 42042,
+            "even_x": 256,
+            "odd_x": 256,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 43544,
+            "even_x": 264,
+            "odd_x": 264,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 45045,
+            "even_x": 272,
+            "odd_x": 272,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 46547,
+            "even_x": 280,
+            "odd_x": 280,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 48048,
+            "even_x": 288,
+            "odd_x": 288,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 49550,
+            "even_x": 296,
+            "odd_x": 296,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 51051,
+            "even_x": 304,
+            "odd_x": 304,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 52553,
+            "even_x": 312,
+            "odd_x": 312,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 54054,
+            "even_x": 320,
+            "odd_x": 320,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 55556,
+            "even_x": 328,
+            "odd_x": 328,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 57057,
+            "even_x": 336,
+            "odd_x": 336,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 58559,
+            "even_x": 344,
+            "odd_x": 344,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 60060,
+            "even_x": 352,
+            "odd_x": 352,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 61562,
+            "even_x": 360,
+            "odd_x": 360,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 63063,
+            "even_x": 368,
+            "odd_x": 368,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 64565,
+            "even_x": 376,
+            "odd_x": 376,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 66066,
+            "even_x": 384,
+            "odd_x": 384,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 67568,
+            "even_x": 392,
+            "odd_x": 392,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 69069,
+            "even_x": 400,
+            "odd_x": 400,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 70571,
+            "even_x": 408,
+            "odd_x": 408,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 72072,
+            "even_x": 416,
+            "odd_x": 416,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 73574,
+            "even_x": 424,
+            "odd_x": 424,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 75075,
+            "even_x": 432,
+            "odd_x": 432,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 76577,
+            "even_x": 440,
+            "odd_x": 440,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 78078,
+            "even_x": 448,
+            "odd_x": 448,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 79580,
+            "even_x": 456,
+            "odd_x": 456,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 81081,
+            "even_x": 464,
+            "odd_x": 464,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 82583,
+            "even_x": 472,
+            "odd_x": 472,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 84084,
+            "even_x": 480,
+            "odd_x": 480,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 85586,
+            "even_x": 488,
+            "odd_x": 488,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 87087,
+            "even_x": 496,
+            "odd_x": 496,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 88589,
+            "even_x": 504,
+            "odd_x": 504,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 90090,
+            "even_x": 512,
+            "odd_x": 512,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 91592,
+            "even_x": 520,
+            "odd_x": 520,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 93093,
+            "even_x": 528,
+            "odd_x": 528,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 94595,
+            "even_x": 536,
+            "odd_x": 536,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 96096,
+            "even_x": 544,
+            "odd_x": 544,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 97598,
+            "even_x": 552,
+            "odd_x": 552,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 99099,
+            "even_x": 560,
+            "odd_x": 560,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 100601,
+            "even_x": 568,
+            "odd_x": 568,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 102102,
+            "even_x": 576,
+            "odd_x": 576,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 103604,
+            "even_x": 584,
+            "odd_x": 584,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 105105,
+            "even_x": 592,
+            "odd_x": 592,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 106607,
+            "even_x": 600,
+            "odd_x": 600,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 108108,
+            "even_x": 608,
+            "odd_x": 608,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 109610,
+            "even_x": 616,
+            "odd_x": 616,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 111111,
+            "even_x": 624,
+            "odd_x": 624,
+            "w": 720,
+            "h": 480,
+            "film": null
+          },
+          {
+            "pts": 112613,
+            "even_x": 32,
+            "odd_x": 32,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 114115,
+            "even_x": 40,
+            "odd_x": 40,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 115616,
+            "even_x": 48,
+            "odd_x": 48,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 117118,
+            "even_x": 56,
+            "odd_x": 56,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 118619,
+            "even_x": 64,
+            "odd_x": 64,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 120121,
+            "even_x": 72,
+            "odd_x": 72,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 121622,
+            "even_x": 80,
+            "odd_x": 80,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 123124,
+            "even_x": 88,
+            "odd_x": 88,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 124625,
+            "even_x": 96,
+            "odd_x": 96,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 126127,
+            "even_x": 104,
+            "odd_x": 104,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 127628,
+            "even_x": 112,
+            "odd_x": 112,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 129130,
+            "even_x": 120,
+            "odd_x": 120,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 130631,
+            "even_x": 128,
+            "odd_x": 128,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 132133,
+            "even_x": 136,
+            "odd_x": 136,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 133634,
+            "even_x": 144,
+            "odd_x": 144,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 135136,
+            "even_x": 152,
+            "odd_x": 152,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 136637,
+            "even_x": 160,
+            "odd_x": 160,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 138139,
+            "even_x": 168,
+            "odd_x": 168,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 139640,
+            "even_x": 176,
+            "odd_x": 176,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 141142,
+            "even_x": 184,
+            "odd_x": 184,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 142643,
+            "even_x": 192,
+            "odd_x": 192,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 144145,
+            "even_x": 200,
+            "odd_x": 200,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 145646,
+            "even_x": 208,
+            "odd_x": 208,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 147148,
+            "even_x": 216,
+            "odd_x": 216,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 148649,
+            "even_x": 224,
+            "odd_x": 224,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 150151,
+            "even_x": 232,
+            "odd_x": 232,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 151652,
+            "even_x": 240,
+            "odd_x": 240,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 153154,
+            "even_x": 248,
+            "odd_x": 248,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 154655,
+            "even_x": 256,
+            "odd_x": 256,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 156157,
+            "even_x": 264,
+            "odd_x": 264,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 157658,
+            "even_x": 272,
+            "odd_x": 272,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 159160,
+            "even_x": 280,
+            "odd_x": 280,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 160661,
+            "even_x": 288,
+            "odd_x": 288,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 162163,
+            "even_x": 296,
+            "odd_x": 296,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 163664,
+            "even_x": 304,
+            "odd_x": 304,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 165166,
+            "even_x": 312,
+            "odd_x": 312,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 166667,
+            "even_x": 320,
+            "odd_x": 320,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 168169,
+            "even_x": 328,
+            "odd_x": 328,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 169670,
+            "even_x": 336,
+            "odd_x": 336,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 171172,
+            "even_x": 344,
+            "odd_x": 344,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 172673,
+            "even_x": 352,
+            "odd_x": 352,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 174175,
+            "even_x": 360,
+            "odd_x": 360,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 175676,
+            "even_x": 368,
+            "odd_x": 368,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 177178,
+            "even_x": 376,
+            "odd_x": 376,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 178679,
+            "even_x": 384,
+            "odd_x": 384,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 180181,
+            "even_x": 392,
+            "odd_x": 392,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 181682,
+            "even_x": 400,
+            "odd_x": 400,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 183184,
+            "even_x": 408,
+            "odd_x": 408,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 184685,
+            "even_x": 416,
+            "odd_x": 416,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 186187,
+            "even_x": 424,
+            "odd_x": 424,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 187688,
+            "even_x": 432,
+            "odd_x": 432,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 189190,
+            "even_x": 440,
+            "odd_x": 440,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 190691,
+            "even_x": 448,
+            "odd_x": 448,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 192193,
+            "even_x": 456,
+            "odd_x": 456,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 193694,
+            "even_x": 464,
+            "odd_x": 464,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 195196,
+            "even_x": 472,
+            "odd_x": 472,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 196697,
+            "even_x": 480,
+            "odd_x": 480,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 198199,
+            "even_x": 488,
+            "odd_x": 488,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 199700,
+            "even_x": 496,
+            "odd_x": 496,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 201202,
+            "even_x": 504,
+            "odd_x": 504,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 202703,
+            "even_x": 512,
+            "odd_x": 512,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 204205,
+            "even_x": 520,
+            "odd_x": 520,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 205706,
+            "even_x": 528,
+            "odd_x": 528,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 207208,
+            "even_x": 536,
+            "odd_x": 536,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 208709,
+            "even_x": 544,
+            "odd_x": 544,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 210211,
+            "even_x": 552,
+            "odd_x": 552,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 211712,
+            "even_x": 560,
+            "odd_x": 560,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 213214,
+            "even_x": 568,
+            "odd_x": 568,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 214715,
+            "even_x": 576,
+            "odd_x": 576,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 216217,
+            "even_x": 584,
+            "odd_x": 584,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 217718,
+            "even_x": 592,
+            "odd_x": 592,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 219220,
+            "even_x": 600,
+            "odd_x": 600,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 220721,
+            "even_x": 608,
+            "odd_x": 608,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 222223,
+            "even_x": 616,
+            "odd_x": 616,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          },
+          {
+            "pts": 223724,
+            "even_x": 624,
+            "odd_x": 624,
+            "w": 1280,
+            "h": 720,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 172208,
+      "sha256": "d77d606e2498bdb53aebac9831b753635c0330734bc927c874300c4408d267e2",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "720x480",
+          "-r",
+          "60000/1001",
+          "-i",
+          "-",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "3M",
+          "-maxrate",
+          "3M",
+          "-bufsize",
+          "6M",
+          "-bf",
+          "0",
+          "-g",
+          "30",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact+low_delay",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "segment0.ts"
+        ],
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "1280x720",
+          "-r",
+          "60000/1001",
+          "-i",
+          "-",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "3M",
+          "-maxrate",
+          "3M",
+          "-bufsize",
+          "6M",
+          "-bf",
+          "0",
+          "-g",
+          "30",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact+low_delay",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "-output_ts_offset",
+          "1.251250000",
+          "segment1.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/resolution_change.framemd5"
+    },
+    {
+      "name": "replay_short_720p",
+      "file": "replay_short_720p.ts",
+      "kind": "bar",
+      "duration_frames": 30,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuv420p",
+        "field_order": "progressive",
+        "sar": "1:1",
+        "display_aspect_ratio": "16:9",
+        "avg_frame_rate": "60000/1001",
+        "r_frame_rate": "60000/1001",
+        "time_base": "1/90000",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "pts_ticks": [
+          1502,
+          3004,
+          4505,
+          6007,
+          7508,
+          9010,
+          10511,
+          12013,
+          13514,
+          15016,
+          16517,
+          18019,
+          19520,
+          21022,
+          22523,
+          24025,
+          25526,
+          27028,
+          28529,
+          30031,
+          31532,
+          33034,
+          34535,
+          36037,
+          37538,
+          39040,
+          40541,
+          42043,
+          43544,
+          45046
+        ],
+        "pts_rule": {
+          "clock_hz": 90000,
+          "frame_duration_ticks": "90090000/60000",
+          "gap_at_frame": null,
+          "gap_seconds": null
+        }
+      },
+      "audio": {
+        "codec": "ac3",
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "content": {
+        "kind": "bar",
+        "note": null,
+        "bar_width": 32,
+        "band_rows": [
+          216,
+          503
+        ],
+        "sample_y": 360,
+        "interlaced_fields": false,
+        "field_order": "progressive",
+        "field_step_px": null,
+        "film_step_px": null,
+        "cut_frame": null,
+        "frames": [
+          {
+            "pts": 1502,
+            "even_x": 32,
+            "odd_x": 32,
+            "film": null
+          },
+          {
+            "pts": 3004,
+            "even_x": 40,
+            "odd_x": 40,
+            "film": null
+          },
+          {
+            "pts": 4505,
+            "even_x": 48,
+            "odd_x": 48,
+            "film": null
+          },
+          {
+            "pts": 6007,
+            "even_x": 56,
+            "odd_x": 56,
+            "film": null
+          },
+          {
+            "pts": 7508,
+            "even_x": 64,
+            "odd_x": 64,
+            "film": null
+          },
+          {
+            "pts": 9010,
+            "even_x": 72,
+            "odd_x": 72,
+            "film": null
+          },
+          {
+            "pts": 10511,
+            "even_x": 80,
+            "odd_x": 80,
+            "film": null
+          },
+          {
+            "pts": 12013,
+            "even_x": 88,
+            "odd_x": 88,
+            "film": null
+          },
+          {
+            "pts": 13514,
+            "even_x": 96,
+            "odd_x": 96,
+            "film": null
+          },
+          {
+            "pts": 15016,
+            "even_x": 104,
+            "odd_x": 104,
+            "film": null
+          },
+          {
+            "pts": 16517,
+            "even_x": 112,
+            "odd_x": 112,
+            "film": null
+          },
+          {
+            "pts": 18019,
+            "even_x": 120,
+            "odd_x": 120,
+            "film": null
+          },
+          {
+            "pts": 19520,
+            "even_x": 128,
+            "odd_x": 128,
+            "film": null
+          },
+          {
+            "pts": 21022,
+            "even_x": 136,
+            "odd_x": 136,
+            "film": null
+          },
+          {
+            "pts": 22523,
+            "even_x": 144,
+            "odd_x": 144,
+            "film": null
+          },
+          {
+            "pts": 24025,
+            "even_x": 152,
+            "odd_x": 152,
+            "film": null
+          },
+          {
+            "pts": 25526,
+            "even_x": 160,
+            "odd_x": 160,
+            "film": null
+          },
+          {
+            "pts": 27028,
+            "even_x": 168,
+            "odd_x": 168,
+            "film": null
+          },
+          {
+            "pts": 28529,
+            "even_x": 176,
+            "odd_x": 176,
+            "film": null
+          },
+          {
+            "pts": 30031,
+            "even_x": 184,
+            "odd_x": 184,
+            "film": null
+          },
+          {
+            "pts": 31532,
+            "even_x": 192,
+            "odd_x": 192,
+            "film": null
+          },
+          {
+            "pts": 33034,
+            "even_x": 200,
+            "odd_x": 200,
+            "film": null
+          },
+          {
+            "pts": 34535,
+            "even_x": 208,
+            "odd_x": 208,
+            "film": null
+          },
+          {
+            "pts": 36037,
+            "even_x": 216,
+            "odd_x": 216,
+            "film": null
+          },
+          {
+            "pts": 37538,
+            "even_x": 224,
+            "odd_x": 224,
+            "film": null
+          },
+          {
+            "pts": 39040,
+            "even_x": 232,
+            "odd_x": 232,
+            "film": null
+          },
+          {
+            "pts": 40541,
+            "even_x": 240,
+            "odd_x": 240,
+            "film": null
+          },
+          {
+            "pts": 42043,
+            "even_x": 248,
+            "odd_x": 248,
+            "film": null
+          },
+          {
+            "pts": 43544,
+            "even_x": 256,
+            "odd_x": 256,
+            "film": null
+          },
+          {
+            "pts": 45046,
+            "even_x": 264,
+            "odd_x": 264,
+            "film": null
+          }
+        ]
+      },
+      "bytes": 54708,
+      "sha256": "9ebf2dda89d49185744b14b26c58997915f8f67aa700f8b07bcb4fce736fa2d1",
+      "commands": [
+        [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p",
+          "-s",
+          "1280x720",
+          "-r",
+          "60000/1001",
+          "-i",
+          "-",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=48000:duration=1.001",
+          "-fps_mode",
+          "passthrough",
+          "-c:v",
+          "mpeg2video",
+          "-pix_fmt",
+          "yuv420p",
+          "-b:v",
+          "6M",
+          "-maxrate",
+          "6M",
+          "-bufsize",
+          "12M",
+          "-bf",
+          "0",
+          "-g",
+          "30",
+          "-threads",
+          "1",
+          "-flags",
+          "+bitexact",
+          "-color_range",
+          "tv",
+          "-colorspace",
+          "bt709",
+          "-color_primaries",
+          "bt709",
+          "-color_trc",
+          "bt709",
+          "-c:a",
+          "ac3",
+          "-b:a",
+          "192k",
+          "-ac",
+          "2",
+          "-ar",
+          "48000",
+          "-fflags",
+          "+bitexact",
+          "-shortest",
+          "-f",
+          "mpegts",
+          "-muxdelay",
+          "0",
+          "-muxpreload",
+          "0",
+          "replay_short_720p.ts"
+        ]
+      ],
+      "reference_framemd5": "reference/replay_short_720p.framemd5"
+    }
+  ]
+}

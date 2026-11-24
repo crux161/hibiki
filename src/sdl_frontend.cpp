@@ -71,6 +71,15 @@ std::string upper(std::string s) {
     return s;
 }
 
+// Field order token from the player -> short HUD label.
+std::string field_tag(const std::string& order) {
+    if (order == "tt" || order == "tb") return "TFF";
+    if (order == "bb" || order == "bt") return "BFF";
+    if (order == "progressive") return "PROG";
+    if (order == "mixed") return "MIXED";
+    return "---";
+}
+
 // Broadcast text -> what the VCR OSD font can draw: uppercase ASCII, with
 // Latin-1 accents folded to their base letter and anything else as '?'.
 std::string vcr_text(const std::string& in, size_t max_len = std::string::npos) {
@@ -427,13 +436,16 @@ void usage(const char* prog) {
         "          [--width <px>] [--height <px>] [--trace] [--no-hud] [--rescan]\n"
         "          [--dump-ts <file>] [--screenshot <bmp>] [--shot-after <ms>]\n"
         "          [--menu] [--keys <Key,Key,...>] [--demo] [--ts-file <capture.ts>]\n"
-        "          [--stats] [--setup | --shortcuts | --about] [--help]\n"
+        "          [--stats] [--decoder auto|cpu] [--vsync on|off|adaptive]\n"
+        "          [--setup | --shortcuts | --about] [--help]\n"
         "  Enter menu; Esc back / quit; Left/Right or PgUp/PgDn channel;\n"
         "  Up/Down volume; +/- volume in menus; 0-9 direct channel; C list; G guide;\n"
         "  A audio track; Z screen scale; I toggle signal info; H toggle HUD; F fullscreen;\n"
         "  ? / F1 shortcuts; B firmware; F2 About; M mute; S scan. --demo runs without a tuner (colour bars) to preview\n"
         "  the OSD; --ts-file replays a capture (e.g. from --dump-ts) as RF\n"
-        "  --channel; --keys injects key presses (SDL key names, \"+ms\" waits).\n",
+        "  --channel; --keys injects key presses (SDL key names, \"+ms\" waits).\n"
+        "  Synthetic replay fixtures and their expected diagnostics live in\n"
+        "  tests/fixtures (see the README there).\n",
         prog);
 }
 
@@ -490,7 +502,9 @@ struct Options {
     bool rescan = false, start_menu = false, trace = false, no_hud = false, demo = false;
     bool setup = false;
     std::string start_page;
-    bool stats = false;        // print A/V sync stats every 2 s
+    bool stats = false;        // print playback diagnostics every 2 s
+    player::DecoderPreference decoder = player::DecoderPreference::Auto;
+    std::string vsync = "on";  // on | off | adaptive
     int change_after = 0;      // test hook: auto channel-change after N seconds
     int shot_after_ms = -1;
     int win_w = 1280, win_h = 720;
@@ -627,6 +641,8 @@ private:
     std::vector<VChan> vchans_;
     uint64_t vchan_gen_ = 0;
     uint64_t stats_ms_ = 0;
+    std::string rend_name_ = "unknown", vsync_req_ = "on", vsync_active_ = "unknown";
+    uint64_t present_gap_max_ms_ = 0;
 };
 
 int App::scanned_index(int ch) const {
@@ -694,7 +710,8 @@ bool App::tune_to(int ch, uint32_t f, int program) {
         if (!ts_file_) std::fprintf(stderr, "[-] cannot open %s\n", opt_.ts_file.c_str());
         tuning_ = fmt("CH %d  READING STREAM", ch);
         present();
-        ok = ts_file_ && pl_.open(make_source(), ren_, program, [this] { return pump_tuning(); });
+        ok = ts_file_ && pl_.open(make_source(), ren_, program, [this] { return pump_tuning(); },
+                                   opt_.decoder);
     } else {
         std::printf("[*] tuning channel %d (%.3f MHz)...\n", ch, f / 1e6);
         hibiki::AtscStatus st;
@@ -710,7 +727,8 @@ bool App::tune_to(int ch, uint32_t f, int program) {
             std::printf("[+] locked (SNR %.1f dB)\n", st.snr_db_tenths / 10.0);
             tuning_ = fmt("CH %d  READING STREAM", ch);
             present();
-            ok = pl_.open(make_source(), ren_, program, [this] { return pump_tuning(); });
+            ok = pl_.open(make_source(), ren_, program, [this] { return pump_tuning(); },
+                          opt_.decoder);
         } else {
             std::fprintf(stderr, "[-] channel %d did not lock\n", ch);
         }
@@ -1915,9 +1933,31 @@ void App::draw_hud() {
         }
         if (media_ok_) {   // playback diagnostics
             const player::Stats& ps = pl_.stats();
+            const player::VideoInfo& vi = pl_.info();
             osd_.text(Font::Small, fmt("AV %+.3fS BUF %.2fS DROP %llu", ps.av_offset,
                                        ps.audio_latency, (unsigned long long)ps.frames_dropped),
                       W - mx, y - sh * 2, osd::kWhite, Align::Right, Style::Vhs, 200);
+            std::string field = vi.field_order_observed != "unknown"
+                                    ? vi.field_order_observed : vi.field_order;
+            osd_.text(Font::Small, fmt("%s %dX%d %s", upper(vi.codec).c_str(),
+                                       vi.active_width, vi.active_height,
+                                       field_tag(field).c_str()),
+                      W - mx, y - sh * 3, osd::kWhite, Align::Right, Style::Vhs, 200);
+            osd_.text(Font::Small, fmt("DEC %.2f OUT %.2f FPS", ps.decoded_fps,
+                                       ps.output_fps),
+                      W - mx, y - sh * 4, osd::kWhite, Align::Right, Style::Vhs, 200);
+            osd_.text(Font::Small, fmt("PROC %s %.1f MS", upper(vi.processing).c_str(),
+                                       ps.decode_ms + ps.upload_ms),
+                      W - mx, y - sh * 5, osd::kWhite, Align::Right, Style::Vhs, 200);
+            osd_.text(Font::Small, fmt("Q V %.2f P %.2f A %.2f S", ps.queue_video_s,
+                                       ps.queue_packets_s, ps.audio_latency),
+                      W - mx, y - sh * 6, osd::kWhite, Align::Right, Style::Vhs, 200);
+            osd_.text(Font::Small, fmt("DEC %s>%s", upper(vi.decoder_requested).c_str(),
+                                       upper(vi.decoder_active).c_str()),
+                      W - mx, y - sh * 7, osd::kWhite, Align::Right, Style::Vhs, 200);
+            osd_.text(Font::Small, fmt("REN %s VSYNC %s", upper(rend_name_).c_str(),
+                                       upper(vsync_active_).c_str()),
+                      W - mx, y - sh * 8, osd::kWhite, Align::Right, Style::Vhs, 200);
         }
     }
 
@@ -1944,6 +1984,10 @@ void App::maybe_screenshot() {
 }
 
 void App::present() {
+    uint64_t present_now = SDL_GetTicks();
+    if (last_present_)
+        present_gap_max_ms_ = std::max<uint64_t>(present_gap_max_ms_,
+                                                 present_now - last_present_);
     osd_.begin_frame();
     SDL_SetRenderDrawColor(ren_, 0, 0, 0, 255);
     SDL_RenderClear(ren_);
@@ -2020,12 +2064,47 @@ int App::run() {
         return 1;
     }
     if (!TTF_Init()) std::fprintf(stderr, "TTF_Init: %s\n", SDL_GetError());
-    if (!SDL_CreateWindowAndRenderer("Hibiki", opt_.win_w, opt_.win_h, SDL_WINDOW_RESIZABLE,
-                                     &win_, &ren_)) {
-        std::fprintf(stderr, "create window/renderer: %s\n", SDL_GetError());
+    win_ = SDL_CreateWindow("Hibiki", opt_.win_w, opt_.win_h, SDL_WINDOW_RESIZABLE);
+    if (!win_) {
+        std::fprintf(stderr, "create window: %s\n", SDL_GetError());
+        return 1;
+    }
+    ren_ = SDL_CreateRenderer(win_, nullptr);
+    if (!ren_) {
+        std::fprintf(stderr, "create renderer: %s\n", SDL_GetError());
         return 1;
     }
     SDL_SetWindowMinimumSize(win_, 640, 480);
+    {
+        // Record the active presentation path separately from the requested
+        // one, and request VSync explicitly so the result can be verified.
+        const char* name = SDL_GetRendererName(ren_);
+        rend_name_ = name ? name : "unknown";
+        vsync_req_ = opt_.vsync;
+        int wanted = vsync_req_ == "off" ? 0
+                   : vsync_req_ == "adaptive" ? SDL_RENDERER_VSYNC_ADAPTIVE
+                   : 1;
+        bool requested = SDL_SetRenderVSync(ren_, wanted);
+        int active = -1;
+        bool known = SDL_GetRenderVSync(ren_, &active);
+        vsync_active_ = !known ? "unknown"
+                        : active == 0 ? "off"
+                        : active == 1 ? "on"
+                        : active == SDL_RENDERER_VSYNC_ADAPTIVE ? "adaptive"
+                        : fmt("%d", active);
+        int sdl_version = SDL_GetVersion();
+        std::printf("[*] hibiki %s | SDL %d.%d.%d | FFmpeg %s | decoder=%s\n", VERSION,
+                    SDL_VERSIONNUM_MAJOR(sdl_version),
+                    SDL_VERSIONNUM_MINOR(sdl_version),
+                    SDL_VERSIONNUM_MICRO(sdl_version), av_version_info(),
+                    opt_.decoder == player::DecoderPreference::Cpu ? "cpu" : "auto");
+        std::printf("[+] presentation: renderer=auto>%s vsync=%s>%s\n",
+                    rend_name_.c_str(), vsync_req_.c_str(), vsync_active_.c_str());
+        std::fflush(stdout);
+        if (!requested)
+            std::fprintf(stderr, "[!] vsync request '%s' failed: %s\n",
+                         vsync_req_.c_str(), SDL_GetError());
+    }
     app_event_ = SDL_RegisterEvents(1);
     hibiki::install_app_menu(app_event_);
     start_ms_ = SDL_GetTicks();
@@ -2098,6 +2177,33 @@ int App::run() {
     }
 
     bool did_auto_change = false;
+    auto print_stats = [&] {
+        const player::Stats& ps = pl_.stats();
+        const player::VideoInfo& vi = pl_.info();
+        std::string field = vi.field_order_observed != "unknown"
+                                ? vi.field_order_observed : vi.field_order;
+        std::printf("[stats] av=%+.3f audio=%.3f shown=%llu dropped=%llu resyncs=%llu "
+                    "decoded=%llu dec_fps=%.2f out_fps=%.2f dec_ms=%.2f up_ms=%.2f "
+                    "q_video=%.3f q_packets=%.3f size=%dx%d size_changes=%llu "
+                    "field=%s proc=%s decoder=%s>%s renderer=auto>%s vsync=%s>%s "
+                    "present_gap_ms=%llu psip_ch=%zu psip_ev=%zu\n",
+                    ps.av_offset, ps.audio_latency,
+                    (unsigned long long)ps.frames_shown,
+                    (unsigned long long)ps.frames_dropped,
+                    (unsigned long long)ps.resyncs,
+                    (unsigned long long)ps.frames_decoded,
+                    ps.decoded_fps, ps.output_fps, ps.decode_ms, ps.upload_ms,
+                    ps.queue_video_s, ps.queue_packets_s,
+                    vi.active_width, vi.active_height,
+                    (unsigned long long)vi.size_changes, field.c_str(),
+                    vi.processing.c_str(), vi.decoder_requested.c_str(),
+                    vi.decoder_active.c_str(), rend_name_.c_str(), vsync_req_.c_str(),
+                    vsync_active_.c_str(),
+                    (unsigned long long)present_gap_max_ms_,
+                    psip_.channels().size(), psip_.event_count());
+        std::fflush(stdout);
+        present_gap_max_ms_ = 0;
+    };
     while (hibiki::g_running) {
         uint64_t now = SDL_GetTicks();
         if (opt_.change_after > 0 && !did_auto_change &&
@@ -2139,18 +2245,14 @@ int App::run() {
         if (psip_.generation() != vchan_gen_) rebuild_vchans();
         if (opt_.stats && media_ok_ && SDL_GetTicks() - stats_ms_ >= 2000) {
             stats_ms_ = SDL_GetTicks();
-            const player::Stats& ps = pl_.stats();
-            std::printf("[stats] av %+.3f s  audio buf %.3f s  shown %llu  dropped %llu  resyncs %llu  "
-                        "psip %zu ch %zu ev\n", ps.av_offset, ps.audio_latency,
-                        (unsigned long long)ps.frames_shown, (unsigned long long)ps.frames_dropped,
-                        (unsigned long long)ps.resyncs, psip_.channels().size(), psip_.event_count());
-            std::fflush(stdout);
+            print_stats();
         }
         if (dirty || SDL_GetTicks() - last_present_ >= 33) present();
         else SDL_Delay((Uint32)std::max(1, media_ok_ ? pl_.idle_ms() : 5));
     }
 
     psip_housekeeping(true);
+    if (opt_.stats && media_ok_) print_stats();   // final sample at shutdown
     pl_.close();
     if (ts_file_) std::fclose(ts_file_);
     if (bars_) SDL_DestroyTexture(bars_);
@@ -2185,6 +2287,24 @@ int main(int argc, char** argv) {
         else if (a == "--help" || a == "-h") { usage(argv[0]); return 0; }
         else if (a == "--ts-file" && (v = next())) o.ts_file = v;
         else if (a == "--stats") o.stats = true;
+        else if (a == "--decoder" && (v = next())) {
+            std::string s = upper(v);
+            if (s == "AUTO") o.decoder = player::DecoderPreference::Auto;
+            else if (s == "CPU") o.decoder = player::DecoderPreference::Cpu;
+            else {
+                std::fprintf(stderr, "unsupported decoder '%s' (auto|cpu)\n", v);
+                return 2;
+            }
+        }
+        else if (a == "--vsync" && (v = next())) {
+            std::string s = upper(v);
+            if (s == "ON" || s == "OFF" || s == "ADAPTIVE")
+                o.vsync = s == "ON" ? "on" : s == "OFF" ? "off" : "adaptive";
+            else {
+                std::fprintf(stderr, "unsupported vsync mode '%s' (on|off|adaptive)\n", v);
+                return 2;
+            }
+        }
         else if (a == "--keys" && (v = next())) o.keys = v;
         else if (a == "--country" && (v = next())) {
             if (upper(v) != "US") {

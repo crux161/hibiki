@@ -37,8 +37,12 @@ libavformat into video and audio packet queues; the UI thread decodes, keeps
 due on the audio clock (wall clock when there is no audio), dropping late
 frames and resynchronising on timestamp jumps. The UI never blocks on the
 signal, so a dropout freezes the picture with `NO SIGNAL` instead of hanging
-the menus. The signal information panel (`I`) shows the measured A/V offset, audio buffer
-and dropped frames; `--stats` prints them every 2 s.
+the menus. The signal information panel (`I`) and `--stats` report the measured
+A/V offset, audio buffer and dropped frames together with the input
+codec/profile/pixel format/field order, the requested and active decoder and
+renderer, the VSync request and result, decoded/output rates, queue durations,
+and decode/upload time. `--decoder auto|cpu` and `--vsync on|off|adaptive`
+select the requested paths; the active ones are always the ones actually used.
 
 The on-screen display (`src/osd.{h,cpp}`) uses the bundled VCR OSD font
 (`res/font/`): a VHS-style playback HUD (channel, clock, volume, signal) and a
@@ -107,6 +111,18 @@ against a synthetic PSIP stream; `--demo` feeds the same stream to the UI.
   your saved settings.
 - `--keys G,+1000,Return` scripts key presses (SDL key names; `+ms` waits),
   e.g. to screenshot the guide once PSIP has arrived.
+- `tests/fixtures/` generates deterministic synthetic MPEG-TS fixtures with
+  known motion and field parity: progressive 720p59.94, 1080i59.94 TFF,
+  480i59.94 BFF, hard 3:2 telecine, mixed film/video edits, incorrectly
+  flagged input, anamorphic pixels, limited/full-range colour bars, timestamp
+  gaps, a resolution change and a short replay loop. It verifies stream
+  metadata, exact timestamps and per-field bar positions, and replays them
+  through the real front-end (headless) to check the diagnostics, field-parity
+  combing and playback timing. See
+  [tests/fixtures/README.md](tests/fixtures/README.md); `ctest` runs the suite
+  when ffmpeg/ffprobe and Python are available. Recorded baseline numbers and
+  the reference machines are in
+  [docs/PLAYBACK_BASELINE.md](docs/PLAYBACK_BASELINE.md).
 
 **Firmware is not redistributable and is NOT in this repo.** Obtain the blobs
 separately (verify against the SHA-256 table below) and place them in `fw/`, or

@@ -157,6 +157,37 @@ if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
       add_test(NAME fx2_firmware_validation
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/wake_tuner_tests.py)
     endif()
+
+    # ---- M0 video fixtures: generation, verification, replay diagnostics ----
+    find_program(HIBIKI_FFMPEG_EXECUTABLE ffmpeg)
+    find_program(HIBIKI_FFPROBE_EXECUTABLE ffprobe)
+    if(Python3_Interpreter_FOUND AND HIBIKI_FFMPEG_EXECUTABLE AND HIBIKI_FFPROBE_EXECUTABLE)
+      set(HIBIKI_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/test-fixtures")
+      set(_fixture_env
+        "HIBIKI_FFMPEG=${HIBIKI_FFMPEG_EXECUTABLE};HIBIKI_FFPROBE=${HIBIKI_FFPROBE_EXECUTABLE}")
+      add_test(NAME video_fixture_generation
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/generate_fixtures.py
+                --out ${HIBIKI_FIXTURE_DIR})
+      set_tests_properties(video_fixture_generation PROPERTIES
+        FIXTURES_SETUP hibiki_video_fixtures
+        TIMEOUT 600 SKIP_RETURN_CODE 77 ENVIRONMENT "${_fixture_env}")
+      add_test(NAME video_fixture_verification
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/verify_fixtures.py
+                --dir ${HIBIKI_FIXTURE_DIR})
+      set_tests_properties(video_fixture_verification PROPERTIES
+        FIXTURES_REQUIRED hibiki_video_fixtures
+        TIMEOUT 300 SKIP_RETURN_CODE 77 ENVIRONMENT "${_fixture_env}")
+      add_test(NAME video_fixture_replay
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/replay_check.py
+                --app $<TARGET_FILE:hibiki_sdl> --dir ${HIBIKI_FIXTURE_DIR} --quick)
+      set_tests_properties(video_fixture_replay PROPERTIES
+        FIXTURES_REQUIRED hibiki_video_fixtures
+        TIMEOUT 300 SKIP_RETURN_CODE 77
+        ENVIRONMENT "${_fixture_env};SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    endif()
   endif()
 else()
   message(STATUS "hibiki_sdl skipped (need SDL3 + SDL3_ttf + FFmpeg)")

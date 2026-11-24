@@ -46,10 +46,42 @@ namespace player {
 using ReadFn = std::function<int(uint8_t* buf, int size)>;
 using PumpFn = std::function<bool()>;  // main-thread UI pump; false cancels probing
 
+// Which video decoder the caller asked for. Auto means "best available once
+// hardware decoding exists"; until then Auto and Cpu both use FFmpeg's CPU
+// decoder, and the diagnostics record requested and active separately.
+enum class DecoderPreference { Auto, Cpu };
+
+// Static properties of the active video stream, for the info panel and --stats.
+// field_order values follow FFmpeg: "progressive", "tt", "bb", "tb", "bt" or
+// "unknown"; field_order_observed is derived from decoded frame flags.
+struct VideoInfo {
+    std::string codec = "unknown";
+    std::string profile = "unknown";
+    std::string pixel_format = "unknown";
+    int width = 0, height = 0;                 // declared by the stream
+    int active_width = 0, active_height = 0;   // last decoded frame
+    std::string sar = "0:1";
+    std::string frame_rate = "0/1";
+    std::string field_order = "unknown";
+    std::string field_order_observed = "unknown";
+    std::string color_range = "unknown";
+    std::string color_space = "unknown";
+    std::string decoder_requested = "auto";
+    std::string decoder_active = "none";
+    std::string processing = "bypass";
+    uint64_t size_changes = 0;
+};
+
 struct Stats {
     double av_offset = 0;        // last (video pts - clock) at display, seconds
     double audio_latency = 0;    // seconds of audio queued in SDL
     uint64_t frames_shown = 0, frames_dropped = 0, resyncs = 0;
+    // M0 playback diagnostics.
+    uint64_t frames_decoded = 0;
+    double decoded_fps = 0, output_fps = 0;   // rolling ~1 s windows
+    double queue_video_s = 0;                 // decoded-frame queue span
+    double queue_packets_s = 0;               // demux packet queues span
+    double decode_ms = 0, upload_ms = 0;      // rolling per-frame averages
 };
 
 class Player {
@@ -61,7 +93,8 @@ public:
 
     // Probe the stream (blocking, on the caller's thread) and start decoding
     // `program_id` (-1 = pick the main service). Returns false on failure.
-    bool open(ReadFn read, SDL_Renderer* ren, int program_id = -1, PumpFn pump = {});
+    bool open(ReadFn read, SDL_Renderer* ren, int program_id = -1, PumpFn pump = {},
+              DecoderPreference decoder = DecoderPreference::Auto);
     void close();
     bool is_open() const { return fmt_ != nullptr; }
 
@@ -91,6 +124,7 @@ public:
     // ms since the source last delivered bytes (signal stall detection).
     uint64_t ms_since_data() const;
     const Stats& stats() const { return stats_; }
+    const VideoInfo& info() const { return info_; }
 
     // Raw TS seen by the demuxer since the last call (for PSIP decoding).
     void take_ts(std::vector<uint8_t>& out);
@@ -114,6 +148,8 @@ private:
     void decode_audio_packet(AVPacket* pkt);
     void upload(AVFrame* f);
     double pq_duration(const PacketQueue& q) const;
+    void note_frame_info(const AVFrame* f);
+    void update_rates();
 
     // source / demux
     ReadFn read_;
@@ -147,6 +183,14 @@ private:
     int width_ = 0, height_ = 0;
     AVRational sar_{0, 1};
     bool have_frame_ = false;
+
+    // diagnostics (main thread only)
+    DecoderPreference decoder_pref_ = DecoderPreference::Auto;
+    VideoInfo info_;
+    uint64_t tff_frames_ = 0, bff_frames_ = 0, progressive_frames_ = 0;
+    std::string observed_logged_;
+    uint64_t rate_start_ns_ = 0;
+    uint32_t rate_decoded_ = 0, rate_output_ = 0;
 
     // clock
     double audio_end_pts_ = -1;          // PTS (s) at the end of audio given to SDL

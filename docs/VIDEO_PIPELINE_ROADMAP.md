@@ -65,6 +65,11 @@ change, with its exit criteria recorded in the pull request.
 
 ## M0 Establish fixtures and a presentation baseline
 
+> **Status 2026-11-24: implemented.** Fixture generation, verification and
+> replay checks live in `tests/fixtures/`; the reference machines, dependency
+> versions and recorded baseline are in
+> [PLAYBACK_BASELINE.md](PLAYBACK_BASELINE.md).
+
 1. Add reproducible short fixtures for progressive 720p59.94, interlaced
    1080i59.94, 480i, both field orders, hard 3:2 telecine, and mixed film/video
    edits. Here 1080i59.94 means 59.94 fields and 29.97 coded frames per second.
