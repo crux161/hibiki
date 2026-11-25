@@ -1,9 +1,26 @@
-# Hibiki (響)
+<p align="center">
+  <img src="res/image/mangosteen.png" alt="Hibiki mangosteen logo" width="256" height="256" />
+</p>
 
-Hibiki is a modern RE project dedicated to making the MyGiga USB-C ATSC tuner usable
-outside of the NewPadTVHD app for Android.
+<h1 align="center">Hibiki (響)</h1>
+<p align="center"><strong>ASTC Tuner Nostalgia,</strong> <i>and a dash of freedom.</i></p>
+<p align="center">
+  <a href="#what-runs-today">Status</a> ·
+  <a href="#build-and-run">Build &amp; run</a> ·
+  <a href="#ledgend">Ledgend</a> · 
+  <a href="#firmware-setup-in-the-hud">Firmware setup in the HUD</a>
+</p>
 
-## Build & run (macOS)
+Hibiki is an opensource implementation of the functionality in the PadTV HD app, specifically
+targetting the Gigatech MyGica PT682c. 
+
+Gigatech makes a wonderful bit of hardware but the software support is a bit lack-luster. In order to make that hardware useful (in the hopes that other people find it useful as well) I have built this for macOS. It is portable enough that only a little bit of work needs to be done to bring something like this to other OSes like Linux etc.
+
+## What runs today
+
+The pt682c is essnetially at 95% working status. The only thing left to implement is more or less support for closed captions, and a schedule timer/recorder. Otherwise we're essentialy at feature parity (if not better in some respects). To be fair, this device normally serves an android host which is usually a mobile cpu of lesser ability than an M4 Pro. 
+
+## Build and run
 
 Requires `libusb`, and for the TV front-end `sdl3`, `sdl3_ttf` and `ffmpeg`
 (Homebrew). The FX2 bridge firmware must already be loaded (`scripts/wake_tuner.py`).
@@ -68,7 +85,11 @@ Planned deinterlacing, field matching, VideoToolbox/Metal integration, and porta
 ARM64 CPU/NEON work are broken into implementation milestones in the
 [video playback roadmap](docs/VIDEO_PIPELINE_ROADMAP.md).
 
-Front-end controls (remote-style; `?` / `F1` opens the shortcut guide):
+## Ledgend
+
+Hibiki is keyboard driven mainly. You can press ? or F1 to bring up the legend, and 
+the ESC (escape) key to go back. It's fairly simple, and I don't have plans for it
+but how could would a remote be for this? 
 
 | Key | Action |
 | --- | --- |
@@ -184,10 +205,12 @@ to inspect them without connecting hardware.
 
 ### Carrying the firmware as base64
 
-`scripts/fw_bundle.py` packs the two blobs needed to run — the Eagle runtime
-firmware and the PT930 FX2 bootstrap used by `wake_tuner.py` — into one
-SHA-256-pinned base64 bundle, and verifies/restores from either that bundle,
-a raw `fw/` tree, or a bare base64 snippet of one blob:
+`scripts/fw_bundle.py` verifies, restores, installs, shows installed firmware, and
+well one more <i>fruity thing</i> for those who really need help. You should acquire the firmware yourself (you can extract it from the PadTV HD apk itself).  The PT682c requires "mbin_mxl_eagle_fw.bin" and "PT930_pre_symbol_8051_region.bin". Place them in the repo in 
+a directory called `fw/`. Then consult the example commands below on how to proceed :3
+
+<center>✨🍍✨</center></br>
+
 
 ```sh
 ./scripts/fw_bundle.py pack                      # fw/ -> fw_package/hibiki-fw-b64.json
@@ -197,22 +220,12 @@ a raw `fw/` tree, or a bare base64 snippet of one blob:
 ./scripts/fw_bundle.py show    --src fw_package mbin_mxl_eagle_fw.bin > eagle.b64
 ```
 
-`verify`/`install` also accept a lone `.b64` snippet or a directory of them.
-The bundle is only base64-encoded, so `fw_package/` is gitignored exactly like
-`fw/`: do not commit or redistribute it.
-
 ## Checks
 
 Regression checks after building: `ctest --test-dir build --output-on-failure`.
 With local firmware available, `build/hibiki_firmware_tests fw fw_package/hibiki-fw-b64.json`
 also exercises raw-file, snippet, and bundle installation round trips. The tests
 do not send firmware to USB hardware.
-
-## Extracted Firmware Candidates
-
-Source tree: `MyGica-atsc/NewPad`
-
-## Primary candidates
 
 ### Silicon Labs patch streams
 
