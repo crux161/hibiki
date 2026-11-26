@@ -1,4 +1,5 @@
-// hibiki - EyeTV Stick (VID 0x1F4D / PID 0xE691) userspace tuner library.
+// hibiki userspace tuner facade. The working default is FX2/MxL691
+// (1f4d:e691); EM28xx/MSB1237 (eb1a:5902) is an experimental backend.
 //
 // Core driver for the MyGica / Geniatech EyeTV Stick ATSC tuner. The FX2LP
 // bridge must already be re-enumerated post 8051 firmware load (see
@@ -26,9 +27,12 @@
 #include <thread>
 #include <vector>
 
-#include <libusb.h>
+#include <memory>
 
 namespace hibiki {
+
+class TunerBackend;
+enum class TunerBackendKind { Eagle, Em28xx };
 
 // Set false to request shutdown (the CLI's signal handler clears it).
 extern std::atomic<bool> g_running;
@@ -60,6 +64,9 @@ struct AtscStatus {
 
 // Boot / debug knobs (the former CLI globals). Passed to Init().
 struct TunerConfig {
+    TunerBackendKind backend = TunerBackendKind::Eagle;
+    int usb_bus = -1, usb_address = -1; // EM28xx diagnostic selection
+    bool detach_kernel_driver = false;
     std::string fw_path = "fw/mbin_mxl_eagle_fw.bin";
     bool trace               = false;
     bool skip_soft_reset     = false;
@@ -73,6 +80,7 @@ struct TunerConfig {
 class Tuner {
 public:
     Tuner();
+    explicit Tuner(std::unique_ptr<TunerBackend> backend);
     ~Tuner();
     Tuner(const Tuner&) = delete;
     Tuner& operator=(const Tuner&) = delete;
@@ -81,6 +89,8 @@ public:
     // Open the device, boot the Eagle firmware, apply the attach config trio,
     // issue the FX2 TS-start command and start the TS reader. 0 on success.
     int Init(const TunerConfig& cfg = TunerConfig{});
+    // Diagnostic transport access only; success does not imply TV readiness.
+    int OpenTransport(const TunerConfig& cfg);
     // Stop the reader and release the device. 0 on success.
     int Close();
     // Tune to a frequency (native SetPara takes dvb_frontend_parameters whose
@@ -116,73 +126,16 @@ public:
     // Poll until locked or timeout_ms elapses. Returns true if locked.
     bool WaitLock(int timeout_ms, AtscStatus* out = nullptr);
     // The detected TS bulk-IN endpoint.
-    uint8_t ts_endpoint() const { return ts_ep_; }
-    bool initialized() const { return initialized_; }
+    uint8_t ts_endpoint() const;
+    bool initialized() const;
+    const char* backend_name() const;
+    std::string last_error() const;
 
 private:
-    // -- logging --
-    void hex_dump(const char* tag, const uint8_t* p, size_t n);
-    // -- device / endpoint --
-    void discover_ts_endpoint();
-    // -- FX2 raw commands --
-    bool fx2_cmd_write(const uint8_t* frame, size_t len);
-    bool eagle_hw_reset();
-    bool fx2_start_ts();
-    // -- I2C tunnel --
-    bool i2c_tunnel_write(const uint8_t* payload, size_t len);
-    bool i2c_tunnel_read(const uint8_t* req, size_t req_len,
-                         uint8_t* resp, size_t resp_len);
-    // -- Eagle RPC mailbox --
-    uint32_t eagle_rpc_checksum(std::vector<uint8_t> frame);
-    bool eagle_rpc_checksum_ok(const std::vector<uint8_t>& frame);
-    void eagle_transmit_swap(uint8_t cmd, std::vector<uint8_t>& frame);
-    void eagle_receive_swap(uint8_t cmd, std::vector<uint8_t>& frame);
-    std::vector<uint8_t> eagle_pack_rpc(uint8_t cmd,
-                                        const std::vector<uint8_t>& payload,
-                                        uint8_t seq);
-    bool eagle_read_rpc_response(size_t expected_payload_len,
-                                 std::vector<uint8_t>& response);
-    bool eagle_send_and_receive(uint8_t cmd, const std::vector<uint8_t>& payload,
-                                size_t expected_payload_len = 0,
-                                std::vector<uint8_t>* payload_out = nullptr);
-    // -- MxL memory / registers --
-    bool mxl_mem_write_chunk(uint32_t addr, const uint8_t* data, size_t n);
-    bool mxl_mem_write(uint32_t addr, const uint8_t* data, size_t n);
-    bool mxl_mem_write_u32(uint32_t addr, uint32_t value);
-    bool mxl_mem_read_u32(uint32_t addr, uint32_t& out);
-    bool mxl_mem_read(uint32_t addr, uint8_t* data, size_t n);
-    bool mxl_update_u32(uint32_t addr, uint32_t clear_mask,
-                        uint32_t set_mask, const char* label);
-    bool cfg_dev_power_regulators(bool enable);
-    bool cfg_dev_xtal_a692();
-    bool cfg_dev_loopthrough(bool enable);
-    bool cfg_pre_fw_native_a692();
-    // -- firmware --
-    std::vector<uint8_t> mxl_fw_segment_image(const uint8_t* data, size_t n);
-    bool mxl_fw_segment_write(uint32_t addr, const uint8_t* data, size_t n);
-    bool mxl_verify_mem_window(uint32_t addr, const uint8_t* expected,
-                               size_t n, const std::string& label);
-    bool eagle_load_fw(const std::string& path);
-    // -- demod / tune --
-    bool configure_atsc_demod();
-    bool tune_channel(uint32_t freq_hz);
-    // -- TS reader (async queue + ring) --
-    void start_reader();
-    void stop_reader();
-
-    // -- state --
-    TunerConfig cfg_;
-    libusb_context* ctx_ = nullptr;
-    libusb_device_handle* dev_ = nullptr;
-    uint8_t ts_ep_ = 0x82;
-    uint8_t next_rpc_seq_ = 1;
-    std::mutex i2c_mu_;
-    bool initialized_ = false;
-    int work_mode_ = 0;
-
-    // TS reader internals (defined in tuner.cpp; ring is a private type).
-    struct Reader;
-    Reader* reader_ = nullptr;
+    void select_backend(const TunerConfig& cfg);
+    std::unique_ptr<TunerBackend> backend_;
+    bool injected_ = false;
+    TunerBackendKind kind_ = TunerBackendKind::Eagle;
 };
 
 } // namespace hibiki

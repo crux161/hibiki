@@ -10,6 +10,15 @@ endif()
 find_package(Threads REQUIRED)
 include(CTest)
 
+if(BUILD_TESTING)
+  find_package(Python3 QUIET COMPONENTS Interpreter)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME em28xx_read_only_probe
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/em28xx_probe_tests.py)
+    set_tests_properties(em28xx_read_only_probe PROPERTIES TIMEOUT 10)
+  endif()
+endif()
+
 # ---- libusb-1.0: prefer pkg-config, fall back to Homebrew paths ----
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -37,13 +46,25 @@ else()
 endif()
 
 # ---- core tuner library (Android-parity surface) ----
-add_library(hibiki_core STATIC src/tuner.cpp)
+add_library(hibiki_core STATIC src/tuner.cpp src/eagle_backend.cpp src/em28xx_transport.cpp)
 target_include_directories(hibiki_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${HIBIKI_USB_INCLUDE_DIRS})
 target_link_directories(hibiki_core PUBLIC ${HIBIKI_USB_LIBRARY_DIRS})
 target_link_libraries(hibiki_core PUBLIC ${HIBIKI_USB_LIBRARIES} Threads::Threads)
 target_compile_options(hibiki_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
+
+add_executable(hibiki_em28xx_probe src/em28xx_probe.cpp)
+set_target_properties(hibiki_em28xx_probe PROPERTIES OUTPUT_NAME "hibiki-em28xx-probe")
+target_link_libraries(hibiki_em28xx_probe PRIVATE hibiki_core)
+
+if(BUILD_TESTING)
+  add_executable(em28xx_transport_tests tests/em28xx_transport_tests.cpp)
+  target_include_directories(em28xx_transport_tests PRIVATE src)
+  target_link_libraries(em28xx_transport_tests PRIVATE hibiki_core)
+  add_test(NAME em28xx_transport_and_backends COMMAND em28xx_transport_tests)
+  set_tests_properties(em28xx_transport_and_backends PROPERTIES TIMEOUT 10)
+endif()
 
 # ---- ATSC PSIP decoder (channel names and program listings) ----
 add_library(hibiki_psip STATIC src/psip.cpp)
@@ -72,7 +93,7 @@ foreach(_p /opt/homebrew/opt/sdl3/lib/pkgconfig
            /usr/local/opt/sdl3_ttf/lib/pkgconfig
            /usr/local/opt/harfbuzz/lib/pkgconfig
            /usr/local/opt/freetype/lib/pkgconfig)
-  if(EXISTS "${_p}")
+  if(APPLE AND NOT CMAKE_CROSSCOMPILING AND EXISTS "${_p}")
     list(APPEND _hibiki_sdl_pc "${_p}")
   endif()
 endforeach()
@@ -178,7 +199,6 @@ if(SDL3_FOUND AND SDL3_TTF_FOUND AND FFMPEG_FOUND)
     add_test(NAME frontend_controls_and_guide COMMAND hibiki_frontend_tests)
     set_tests_properties(frontend_controls_and_guide PROPERTIES TIMEOUT 10
       ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
-    find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
       add_test(NAME fx2_firmware_validation
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/wake_tuner_tests.py)

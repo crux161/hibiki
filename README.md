@@ -20,6 +20,11 @@ Gigatech makes a wonderful bit of hardware but the software support is a bit lac
 
 The pt682c is essnetially at 95% working status. The only thing left to implement is more or less support for closed captions, and a schedule timer/recorder. Otherwise we're essentialy at feature parity (if not better in some respects). To be fair, this device normally serves an android host which is usually a mobile cpu of lesser ability than an M4 Pro. 
 
+Support for the `eb1a:5902` EM28xx/MSB1237 device is being developed separately;
+see the [device support roadmap](docs/EM28XX_MSB1237_ROADMAP.md). Bridge/I2C
+diagnostics and EEPROM reads now work; live tuning is a later milestone. See
+the [transport baseline](docs/EM28XX_MSB1237_TRANSPORT.md) for reproduction steps.
+
 ## Build and run
 
 Requires `libusb`, and for the TV front-end `sdl3`, `sdl3_ttf` and `ffmpeg`

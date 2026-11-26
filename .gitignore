@@ -1,3 +1,8 @@
+docs/EM28XX_MSB1237_BASELINE.md
+docs/EM28XX_MSB1237_ROADMAP.md
+docs/EM28XX_MSB1237_TRANSPORT.md
+docs/device-reports/
+docs/hibiki_iptv_dvr_architecture_proposal.md
 .DS_Store
 .qwen/
 build/
